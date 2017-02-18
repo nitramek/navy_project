@@ -3,8 +3,7 @@ package cz.nitramek.vsb.gui;
 
 import org.graphstream.graph.Edge;
 import org.graphstream.graph.Graph;
-import org.graphstream.graph.Node;
-import org.graphstream.graph.implementations.SingleGraph;
+import org.graphstream.ui.graphicGraph.GraphicGraph;
 import org.graphstream.ui.layout.Layout;
 import org.graphstream.ui.layout.Layouts;
 import org.graphstream.ui.swingViewer.ViewPanel;
@@ -18,18 +17,27 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
 
 import javax.swing.*;
+
+import cz.nitramek.vsb.MyNode;
+import cz.nitramek.vsb.model.Connection;
+import cz.nitramek.vsb.model.InputNeuron;
+import cz.nitramek.vsb.model.Neuron;
+import cz.nitramek.vsb.model.transfer.TransferFunction;
 
 import static java.util.stream.Collectors.joining;
 
 public class MainFrame extends JFrame {
 
+    private Graph dataGraph;
+
     public MainFrame() {
         super("Navy!");
         getContentPane().setLayout(new BorderLayout());
 
-        Graph graph = new SingleGraph("Tutorial 1");
+        GraphicGraph graph = new GraphicGraph("Tutorial 1");
         String styles = "";
         try {
             Path stylesPath = Paths.get(getClass().getResource("/styles.css").toURI());
@@ -38,14 +46,6 @@ public class MainFrame extends JFrame {
             e.printStackTrace();
         }
         graph.addAttribute("ui.stylesheet", styles);
-        Node a = graph.addNode("A");
-        a.addAttribute("ui.label", "A");
-        graph.addNode("B");
-        graph.addNode("C");
-        Edge edge = graph.addEdge("AB", "A", "B");
-        edge.addAttribute("ui.label", "AB");
-        graph.addEdge("BC", "B", "C");
-        graph.addEdge("CA", "C", "A");
         Viewer viewer = new Viewer(graph, Viewer.ThreadingModel.GRAPH_IN_GUI_THREAD);
 
         Layout layout = Layouts.newLayoutAlgorithm();
@@ -54,22 +54,49 @@ public class MainFrame extends JFrame {
         view.addKeyListener(new KeyAdapter() {
             @Override
             public void keyReleased(KeyEvent e) {
-                if(e.getKeyChar() == 'r'){
+                if (e.getKeyChar() == 'r') {
                     view.getCamera().resetView();
                 }
             }
         });
+
         view.addMouseWheelListener(e -> {
             double diff = e.getPreciseWheelRotation() * e.getScrollAmount() * 0.05;
             double viewPercent = view.getCamera().getViewPercent();
             view.getCamera().setViewPercent(viewPercent + diff);
         });
-
+        GraphMouseManager mouseManager = new GraphMouseManager(graph, view);
+        view.addMouseListener(mouseManager);
 
         getContentPane().add(view, BorderLayout.CENTER);
 
 
-        JPanel controlPanel = new JPanel();
+        InputNeuron inputNeuron = new InputNeuron(10, TransferFunction.BINARY);
+        Connection conn = new Connection(inputNeuron);
+        conn.setWeight(0);
+        Neuron outputNeuron = new Neuron(TransferFunction.BINARY, Collections.singletonList
+                (conn));
+
+        MyNode output = MyNode.wrap(graph.addNode("output 1"));
+
+        outputNeuron.setListener(output::setLabel);
+
+        for (Connection connection : outputNeuron.getIncoming()) {
+            MyNode input = MyNode.wrap(graph.addNode("A"));
+            Edge edge = graph.addEdge("id", input.getNode().getId(), output.getNode().getId(),
+                    true);
+            edge.setAttribute(MyNode.LABEL_ATTRIBUTE_NAME, connection.getWeight());
+            connection.getFrom().setListener(input::setLabel);
+        }
+
+
+        JPanel controlPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridy = 0;
+        JButton comp = new JButton("Start computation");
+        comp.addActionListener(e -> System.out.println(outputNeuron.process()));
+        controlPanel.add(comp);
+        getContentPane().add(controlPanel, BorderLayout.EAST);
 
     }
 

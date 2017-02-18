@@ -7,3 +7,12 @@ node {
     text-color: black;
     text-size: 20px;
 }
+node.input{
+    fill-color: green;
+}
+node.output{
+    fill-color: gray;
+}
+node:selected{
+    fill-color: red;
+}

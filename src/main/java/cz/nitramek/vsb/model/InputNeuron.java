@@ -18,5 +18,9 @@ public class InputNeuron extends Neuron {
         this.input = input;
     }
 
-
+    @Override
+    public double process() {
+        fireNeuronValuePass(input);
+        return this.input;
+    }
 }

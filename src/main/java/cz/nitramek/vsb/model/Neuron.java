@@ -13,12 +13,27 @@ public class Neuron {
     private final TransferFunction transferFunction;
 
     @Setter(AccessLevel.NONE)
-    private final List<Connection> incoming;
+    private List<Connection> incoming;
 
-    double process() {
-        return this.incoming.stream()
-                .mapToDouble(c -> c.getWeight() * c.getOutgoing().process())
+    private ValueChangedListener listener;
+
+    public Neuron(TransferFunction transferFunction, List<Connection> incoming) {
+        this.transferFunction = transferFunction;
+        this.incoming = incoming;
+    }
+
+    protected void fireNeuronValuePass(double value) {
+        if (listener != null) {
+            listener.valueChange(value);
+        }
+    }
+
+    public double process() {
+        double output = this.incoming.stream()
+                .mapToDouble(c -> c.getWeight() * c.getFrom().process())
                 .sum();
+        fireNeuronValuePass(output);
+        return output;
     }
 
 }
