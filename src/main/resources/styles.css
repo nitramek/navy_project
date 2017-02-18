@@ -1,0 +1,9 @@
+node {
+    size-mode: fit;
+    shape: rounded-box;
+    fill-color: white;
+    stroke-mode: plain;
+    padding: 3px, 2px;
+    text-color: black;
+    text-size: 20px;
+}
