@@ -9,7 +9,7 @@ public class Connection {
     private final Neuron from;
 
     private double weight;
-    private ValueChangedListener listener;
+    private ValueListener listener;
 
     public Connection(Neuron from) {
         this.from = from;

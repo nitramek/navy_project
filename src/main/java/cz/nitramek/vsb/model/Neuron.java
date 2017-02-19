@@ -15,7 +15,7 @@ public class Neuron {
     @Setter(AccessLevel.NONE)
     private List<Connection> incoming;
 
-    private ValueChangedListener listener;
+    private ValueListener listener;
 
     public Neuron(TransferFunction transferFunction, List<Connection> incoming) {
         this.transferFunction = transferFunction;

@@ -19,6 +19,14 @@ public class MyNode {
         node.addAttribute(LABEL_ATTRIBUTE_NAME, label);
     }
 
+    public double getLabelAsDouble() {
+        return Double.parseDouble(getLabel());
+    }
+
+    private String getLabel() {
+        return node.getAttribute(LABEL_ATTRIBUTE_NAME);
+    }
+
     public void setLabel(double label) {
         setLabel(String.valueOf(label));
     }

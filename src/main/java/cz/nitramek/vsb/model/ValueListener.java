@@ -4,6 +4,6 @@ import java.util.EventListener;
 
 
 @FunctionalInterface
-public interface ValueChangedListener extends EventListener {
+public interface ValueListener extends EventListener {
     void valueChange(double value);
 }

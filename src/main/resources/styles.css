@@ -5,7 +5,7 @@ node {
     stroke-mode: plain;
     padding: 3px, 2px;
     text-color: black;
-    text-size: 20px;
+    text-size: 30px;
 }
 node.input{
     fill-color: green;
