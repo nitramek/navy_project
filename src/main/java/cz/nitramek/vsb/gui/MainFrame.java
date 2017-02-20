@@ -186,6 +186,28 @@ public class MainFrame extends JFrame {
         JButton addOutputButton = new JButton("Add output node");
         addOutputButton.addActionListener(e -> this.addOutputNode());
         controlPanel.add(addOutputButton, gbc);
+
+        gbc.gridy++;
+        JTextField valueChangeField = new JTextField();
+        controlPanel.add(valueChangeField, gbc);
+
+
+        gbc.gridy++;
+        JButton changeInputValue = new JButton("Change input value");
+        changeInputValue.addActionListener(e -> {
+            graphMouseManager.getSelectedElement().ifPresent(ge -> {
+                Neuron neuron = ge.getAttribute(NEURON_ATTRIBUTE);
+                if (neuron instanceof InputNeuron) {
+                    InputNeuron inputNeuron = (InputNeuron) neuron;
+                    double inputValue = Double.parseDouble(valueChangeField.getText());
+                    inputNeuron.setInput(inputValue);
+                    ge.setAttribute(MyNode.LABEL_ATTRIBUTE_NAME, String.valueOf(valueChangeField
+                            .getText()));
+                    System.out.println("Changed seleceted neuron input value");
+                }
+            });
+        });
+        controlPanel.add(changeInputValue, gbc);
     }
 
     private void createConnectionBetween(GraphicNode fromNode, GraphicElement toNode) {
