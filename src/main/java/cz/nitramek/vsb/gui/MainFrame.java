@@ -15,12 +15,11 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.io.BufferedReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.net.URISyntaxException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.io.InputStreamReader;
+import java.nio.file.FileSystemNotFoundException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -59,11 +58,12 @@ public class MainFrame extends JFrame {
         graph = new GraphicGraph("Tutorial 1");
 
 
-        try {
-            Path stylesPath = Paths.get(getClass().getResource("/styles.css").toURI());
-            String styles = Files.lines(stylesPath).collect(joining());
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(getClass()
+                .getResourceAsStream("/styles.css")))) {
+            String styles = br.lines()
+                    .collect(joining());
             graph.addAttribute("ui.stylesheet", styles);
-        } catch (URISyntaxException | IOException e) {
+        } catch (FileSystemNotFoundException | IOException e) {
             e.printStackTrace();
         }
 
