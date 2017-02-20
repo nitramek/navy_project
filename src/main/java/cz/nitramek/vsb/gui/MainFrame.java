@@ -1,8 +1,9 @@
 package cz.nitramek.vsb.gui;
 
 
+import org.graphstream.graph.Edge;
 import org.graphstream.graph.Node;
-import org.graphstream.ui.graphicGraph.GraphicEdge;
+import org.graphstream.ui.graphicGraph.GraphicElement;
 import org.graphstream.ui.graphicGraph.GraphicGraph;
 import org.graphstream.ui.graphicGraph.GraphicNode;
 import org.graphstream.ui.layout.Layout;
@@ -19,18 +20,22 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.function.Supplier;
 
 import javax.swing.*;
 
 import cz.nitramek.vsb.MyNode;
+import cz.nitramek.vsb.model.Connection;
 import cz.nitramek.vsb.model.InputNeuron;
 import cz.nitramek.vsb.model.NeuralNetwork;
+import cz.nitramek.vsb.model.Neuron;
 import cz.nitramek.vsb.model.transfer.TransferFunction;
 
 import static java.lang.String.format;
 import static java.util.stream.Collectors.joining;
-import static java.util.stream.Collectors.toList;
 
 public class MainFrame extends JFrame {
 
@@ -38,10 +43,13 @@ public class MainFrame extends JFrame {
     public static final String OUTPUT_NODE_PREFIX = "Output_";
     public static final String INTERNAL_NODE_PREFIX = "Internal_";
     public static final String EDGE_PREFIX = "Edge_";
+    public static final String NEURON_ATTRIBUTE = "ui.neuron";
     private final GraphicGraph graph;
     private final GraphMouseManager graphMouseManager;
     private int itemNextId = 0;
     private GraphicNode selectedNode;
+
+    private TransferFunction selectedTransferFunction;
 
     public MainFrame() {
         super("Navy!");
@@ -68,7 +76,7 @@ public class MainFrame extends JFrame {
             public boolean autoLayout = true;
 
             @Override
-            public void keyTyped(KeyEvent e) {
+            public void keyPressed(KeyEvent e) {
                 if (e.getKeyChar() == 'r') {
                     view.getCamera().resetView();
                     viewer.enableAutoLayout();
@@ -85,24 +93,25 @@ public class MainFrame extends JFrame {
                         });
                     } else {
                         graphMouseManager.getSelectedElement().ifPresent(ge -> {
-                            graph.addEdge(EDGE_PREFIX + itemNextId, selectedNode.getId(), ge
-                                    .getId(), true);
-                            itemNextId++;
-                            System.out.println(format("Added edge from %s to %s", selectedNode
-                                    .getId(), ge.getId()));
+                            createConnectionBetween(selectedNode, ge);
                             selectedNode = null;
                         });
                     }
                 }
                 if (e.getKeyChar() == 'd') {
-                    graphMouseManager.getSelectedElement().ifPresent(ge -> {
-                        if (ge instanceof GraphicEdge) {
-                            graph.removeEdge(ge.getId());
-                        }
-                        if (ge instanceof GraphicNode) {
-                            graph.removeNode(ge.getId());
-                        }
-                    });
+                    //TODO removal
+//                    graphMouseManager.getSelectedElement().ifPresent(ge -> {
+//                        if (ge instanceof GraphicEdge) {
+//                            GraphicEdge edge = (GraphicEdge) ge;
+//                            graph.removeEdge(edge.from, edge.to);
+//                            Connection connection = edge.getAttribute("connection");
+//                            connection.getFrom().getIncoming().remove(connection);
+//                            connection.getFrom().getOutgoing().remove(connection);
+//                        }
+//                        else if (ge instanceof GraphicNode) {
+//                            graph.removeNode(ge.getId());
+//                        }
+//                    });
                 }
                 if (e.getKeyChar() == 'a') {
                     if (autoLayout) {
@@ -140,30 +149,80 @@ public class MainFrame extends JFrame {
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.gridy = 0;
+        ComboItem[] comboItems = {new
+                ComboItem(TransferFunction.BINARY, () -> "Binary")};
+        JComboBox<ComboItem> transferFunctionJComboBox = new JComboBox<>(comboItems);
+
+        transferFunctionJComboBox.addActionListener(e -> {
+            selectedTransferFunction = transferFunctionJComboBox.getModel()
+                    .getElementAt(transferFunctionJComboBox.getSelectedIndex()).item;
+        });
+        selectedTransferFunction = comboItems[0].item;
+        controlPanel.add(transferFunctionJComboBox, gbc);
+
+
+        gbc.gridy++;
         JButton comp = new JButton("Start computation");
         comp.addActionListener(this::startComputation);
         controlPanel.add(comp, gbc);
+
+        gbc.gridy++;
         JButton cleanButton = new JButton("Clean graph");
         cleanButton.addActionListener(e -> graph.clear());
-        gbc.gridy = 1;
         controlPanel.add(cleanButton, gbc);
-        gbc.gridy = 2;
+
+
+        gbc.gridy++;
         JButton addInputButton = new JButton("Add input node");
-        addInputButton.addActionListener(e -> this.addNodeAction(OUTPUT_NODE_PREFIX).addAttribute
-                (MyNode.CLASS_ATTRIBUTE_NAME, "input"));
+        addInputButton.addActionListener(e -> this.addInputNode());
         controlPanel.add(addInputButton, gbc);
 
-        gbc.gridy = 3;
+        gbc.gridy++;
         JButton addInternalButton = new JButton("Add internal node");
-        addInternalButton.addActionListener(e -> this.addNodeAction(INTERNAL_NODE_PREFIX)
-                .addAttribute(MyNode.CLASS_ATTRIBUTE_NAME, "internal"));
+        addInternalButton.addActionListener(e -> this.addInternalNode());
         controlPanel.add(addInternalButton, gbc);
 
-        gbc.gridy = 4;
+        gbc.gridy++;
         JButton addOutputButton = new JButton("Add output node");
-        addOutputButton.addActionListener(e -> this.addNodeAction(INPUT_NODE_PREFIX).addAttribute
-                (MyNode.CLASS_ATTRIBUTE_NAME, "output"));
+        addOutputButton.addActionListener(e -> this.addOutputNode());
         controlPanel.add(addOutputButton, gbc);
+    }
+
+    private void createConnectionBetween(GraphicNode fromNode, GraphicElement toNode) {
+        Edge edge = graph.addEdge(EDGE_PREFIX + itemNextId,
+                this.selectedNode.getId(), toNode.getId(), true);
+        Neuron fromNeuron = fromNode.getAttribute(NEURON_ATTRIBUTE);
+        Neuron toNeuron = toNode.getAttribute(NEURON_ATTRIBUTE);
+        Connection connection = new Connection(fromNeuron, toNeuron);
+        fromNeuron.getOutgoing().add(connection);
+        toNeuron.getIncoming().add(connection);
+        edge.setAttribute("connection", connection);
+        connection.setListener(v -> edge.setAttribute(MyNode.LABEL_ATTRIBUTE_NAME, String.valueOf
+                (connection.getWeight())));
+        itemNextId++;
+        System.out.println(format("Added edge from %s to %s", this.selectedNode
+                .getId(), toNode.getId()));
+    }
+
+    private void startComputation(ActionEvent actionEvent) {
+        Thread workingThread = new Thread(() -> {
+            List<InputNeuron> inputNeurons = new ArrayList<>();
+            List<Neuron> outputNeurons = new ArrayList<>();
+            for (Node n : graph.getNodeSet()) {
+                MyNode node = MyNode.wrap(n);
+                if (node.hasClass("input")) {
+                    InputNeuron inputNeuron = n.getAttribute(NEURON_ATTRIBUTE);
+                    inputNeurons.add(inputNeuron);
+                } else if (node.hasClass("output")) {
+                    Neuron neuron = n.getAttribute(NEURON_ATTRIBUTE);
+                    outputNeurons.add(neuron);
+                }
+            }
+            NeuralNetwork nn = new NeuralNetwork(inputNeurons, outputNeurons);
+            double[] outputVector = nn.process();
+            System.out.println(Arrays.toString(outputVector));
+        });
+        workingThread.start();
     }
 
     private Node addNodeAction(String prefix) {
@@ -173,25 +232,44 @@ public class MainFrame extends JFrame {
         return node;
     }
 
-    private void startComputation(ActionEvent e) {
-        transferToModel();
+    private void addInputNode() {
+        Node node = addNodeAction(INPUT_NODE_PREFIX);
+        InputNeuron neuron = new InputNeuron(node.getId(), 1, selectedTransferFunction);
+
+        neuron.setListener(v -> node.setAttribute(MyNode.LABEL_ATTRIBUTE_NAME, String.valueOf(v)));
+        node.setAttribute(MyNode.CLASS_ATTRIBUTE_NAME, "input");
+        node.setAttribute(NEURON_ATTRIBUTE, neuron);
     }
 
-    private NeuralNetwork transferToModel() {
-        List<InputNeuron> inputNeurons = graph.getNodeSet().stream()
-                .filter(n -> n.getId().startsWith(INPUT_NODE_PREFIX))
-                .map(MyNode::wrap)
-                .map(this::parseInputNeuronIntoNode)
-                .collect(toList());
-        return new NeuralNetwork(null, null);
+    private void addInternalNode() {
+        Node node = addNodeAction(INTERNAL_NODE_PREFIX);
+        Neuron neuron = new Neuron(node.getId(), selectedTransferFunction);
+        neuron.setListener(v -> node.setAttribute(MyNode.LABEL_ATTRIBUTE_NAME, String.valueOf(v)));
+        node.setAttribute(NEURON_ATTRIBUTE, neuron);
+        node.setAttribute(MyNode.CLASS_ATTRIBUTE_NAME, "internal");
     }
 
-    private InputNeuron parseInputNeuronIntoNode(MyNode node) {
-        node.addClass("input");
-        double value = node.getLabelAsDouble();
-        InputNeuron inputNeuron = new InputNeuron(value, TransferFunction.BINARY);
-        inputNeuron.setListener(node::setLabel);
-        return inputNeuron;
+    private void addOutputNode() {
+        Node node = addNodeAction(OUTPUT_NODE_PREFIX);
+        Neuron neuron = new Neuron(node.getId(), selectedTransferFunction);
+        neuron.setListener(v -> node.setAttribute(MyNode.LABEL_ATTRIBUTE_NAME, String.valueOf(v)));
+        node.setAttribute(NEURON_ATTRIBUTE, neuron);
+        node.setAttribute(MyNode.CLASS_ATTRIBUTE_NAME, "output");
     }
 
+
+    static class ComboItem {
+        TransferFunction item;
+        Supplier<String> stringSupplier;
+
+        public ComboItem(TransferFunction item, Supplier<String> stringSupplier) {
+            this.item = item;
+            this.stringSupplier = stringSupplier;
+        }
+
+        @Override
+        public String toString() {
+            return stringSupplier.get();
+        }
+    }
 }

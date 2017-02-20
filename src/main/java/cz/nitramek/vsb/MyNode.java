@@ -2,6 +2,8 @@ package cz.nitramek.vsb;
 
 import org.graphstream.graph.Node;
 
+import java.util.Optional;
+
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -33,6 +35,13 @@ public class MyNode {
 
     public void addClass(String clasz) {
         node.addAttribute(CLASS_ATTRIBUTE_NAME, clasz);
+    }
+
+    public boolean hasClass(String clasz) {
+        return Optional.ofNullable(node.getAttribute(CLASS_ATTRIBUTE_NAME))
+                .map(String.class::cast)
+                .filter(cls -> cls.equals(clasz))
+                .isPresent();
     }
 
 
