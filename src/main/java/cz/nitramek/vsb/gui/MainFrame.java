@@ -15,6 +15,7 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
@@ -243,6 +244,20 @@ public class MainFrame extends JFrame {
             NeuralNetwork nn = new NeuralNetwork(inputNeurons, outputNeurons);
             double[] outputVector = nn.process();
             System.out.println(Arrays.toString(outputVector));
+            try (FileWriter fileWriter = new FileWriter("output.json", false)) {
+
+                String input = inputNeurons.stream()
+                        .mapToDouble(InputNeuron::getInput)
+                        .mapToObj(Double::toString)
+                        .collect(joining(", "));
+                String output = Arrays.stream(outputVector)
+                        .mapToObj(Double::toString)
+                        .collect(joining(", "));
+                fileWriter.write(String.format("Input: %s\nResult: %s", input, output));
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         });
         workingThread.start();
     }
