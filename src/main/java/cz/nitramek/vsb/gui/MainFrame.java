@@ -16,16 +16,24 @@ import java.awt.event.ActionEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.file.FileSystemNotFoundException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.swing.*;
+import javax.swing.filechooser.FileNameExtensionFilter;
 
 import cz.nitramek.vsb.MyNode;
 import cz.nitramek.vsb.model.Connection;
@@ -33,9 +41,14 @@ import cz.nitramek.vsb.model.InputNeuron;
 import cz.nitramek.vsb.model.NeuralNetwork;
 import cz.nitramek.vsb.model.Neuron;
 import cz.nitramek.vsb.model.transfer.TransferFunction;
+import javafx.util.Pair;
 
+import static cz.nitramek.vsb.Utils.sleep;
 import static java.lang.String.format;
+import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.mapping;
+import static java.util.stream.Collectors.toList;
 
 public class MainFrame extends JFrame {
 
@@ -44,96 +57,34 @@ public class MainFrame extends JFrame {
     public static final String INTERNAL_NODE_PREFIX = "Internal_";
     public static final String EDGE_PREFIX = "Edge_";
     public static final String NEURON_ATTRIBUTE = "ui.neuron";
-    private final GraphicGraph graph;
-    private final GraphMouseManager graphMouseManager;
+    public static final Pattern SINGLE_INPUT_PATTERN = Pattern.compile("\\s*\\[([0-9]+),([0-9]+)\\]\\s*");
+    public static final Pattern INPUT_SEPARATOR_PATTERN = Pattern.compile(";");
+    private GraphicGraph graph;
+    private GraphMouseManager graphMouseManager;
     private int itemNextId = 0;
     private GraphicNode selectedNode;
 
     private TransferFunction selectedTransferFunction;
+    private TransferFunction proxyTransferFunction = input -> selectedTransferFunction.transfer(input);
+
+    private Map<String, List<Double>> inputs = new HashMap<>();
+    private int inputIndex = 0;
 
     public MainFrame() {
         super("Navy!");
         getContentPane().setLayout(new BorderLayout());
 
-        graph = new GraphicGraph("Tutorial 1");
-
-
-        setGraphStyles();
-
-        Viewer viewer = new Viewer(graph, Viewer.ThreadingModel.GRAPH_IN_GUI_THREAD);
-
-        Layout layout = Layouts.newLayoutAlgorithm();
-        layout.setForce(layout.getForce() / 4);
-        viewer.enableAutoLayout(layout);
-        ViewPanel view = viewer.addDefaultView(false);
-        view.addKeyListener(new KeyAdapter() {
-            public boolean autoLayout = true;
-
-            @Override
-            public void keyPressed(KeyEvent e) {
-                if (e.getKeyChar() == 'r') {
-                    view.getCamera().resetView();
-                    viewer.enableAutoLayout();
-                }
-                if (e.getKeyChar() == 'c') {
-                    if (selectedNode == null) {
-                        graphMouseManager.getSelectedElement().ifPresent(ge -> {
-                            if (ge instanceof GraphicNode) {
-                                selectedNode = (GraphicNode) ge;
-                                System.out.println("Selected node " + selectedNode.getId());
-                            } else {
-                                System.out.println("Node not selected");
-                            }
-                        });
-                    } else {
-                        graphMouseManager.getSelectedElement().ifPresent(ge -> {
-                            createConnectionBetween(selectedNode, ge);
-                            selectedNode = null;
-                        });
-                    }
-                }
-                if (e.getKeyChar() == 'd') {
-                    //TODO removal
-//                    graphMouseManager.getSelectedElement().ifPresent(ge -> {
-//                        if (ge instanceof GraphicEdge) {
-//                            GraphicEdge edge = (GraphicEdge) ge;
-//                            graph.removeEdge(edge.from, edge.to);
-//                            Connection connection = edge.getAttribute("connection");
-//                            connection.getFrom().getIncoming().remove(connection);
-//                            connection.getFrom().getOutgoing().remove(connection);
-//                        }
-//                        else if (ge instanceof GraphicNode) {
-//                            graph.removeNode(ge.getId());
-//                        }
-//                    });
-                }
-                if (e.getKeyChar() == 'a') {
-                    if (autoLayout) {
-                        System.out.println("Auto layout disabled");
-                        viewer.disableAutoLayout();
-                        view.getCamera().setAutoFitView(autoLayout);
-                    } else {
-                        System.out.println("Auto layout enabled");
-                        view.getCamera().setAutoFitView(autoLayout);
-                        viewer.enableAutoLayout();
-                    }
-                    autoLayout = !autoLayout;
-                }
-            }
-        });
-
-        view.addMouseWheelListener(e -> {
-            double diff = e.getPreciseWheelRotation() * e.getScrollAmount() * 0.05;
-            double viewPercent = view.getCamera().getViewPercent();
-            view.getCamera().setViewPercent(viewPercent + diff);
-        });
-        graphMouseManager = new GraphMouseManager(graph, view);
-        view.addMouseListener(graphMouseManager);
-
+        ViewPanel view = setupGraph();
         getContentPane().add(view, BorderLayout.CENTER);
 
-        getContentPane().add(new JLabel("r - go to default view, c - select first node, press c, " +
-                        "select second one pres c to connect, d - select element to delete it"),
+        getContentPane().add(new JLabel("" +
+                        "<html>" +
+                        "r - go to default view, c - select first node, c - select second one pres c to connect, " +
+                        "d - select element to delete it, " +
+                        "<br>" +
+                        "Input format is [id, value];[id, value], next line means another input, " +
+                        "which can be run with pressing Start computation again, you can add output this way too" +
+                        "</html>"),
                 BorderLayout.NORTH);
 
 
@@ -189,28 +140,123 @@ public class MainFrame extends JFrame {
         addOutputButton.addActionListener(e -> this.addOutputNode());
         controlPanel.add(addOutputButton, gbc);
 
-        gbc.gridy++;
-        JTextField valueChangeField = new JTextField();
-        controlPanel.add(valueChangeField, gbc);
 
-
-        gbc.gridy++;
-        JButton changeInputValue = new JButton("Change input value");
-        changeInputValue.addActionListener(e -> {
-            graphMouseManager.getSelectedElement().ifPresent(ge -> {
-                Neuron neuron = ge.getAttribute(NEURON_ATTRIBUTE);
-                if (neuron instanceof InputNeuron) {
-                    InputNeuron inputNeuron = (InputNeuron) neuron;
-                    double inputValue = Double.parseDouble(valueChangeField.getText());
-                    inputNeuron.setInput(inputValue);
-                    ge.setAttribute(MyNode.LABEL_ATTRIBUTE_NAME, String.valueOf(valueChangeField
-                            .getText()));
-                    System.out.println("Changed seleceted neuron input value");
-                }
-            });
+        JFileChooser fileChooser = new JFileChooser(Paths.get(".").toAbsolutePath().toFile());
+        fileChooser.setFileFilter(new FileNameExtensionFilter(".neuron", "neuron"));
+        fileChooser.setMultiSelectionEnabled(false);
+        fileChooser.addActionListener(e -> {
+            File selectedFile = fileChooser.getSelectedFile();
+            if (selectedFile != null) {
+                parseInputFile(selectedFile);
+            }
         });
-        controlPanel.add(changeInputValue, gbc);
+        gbc.gridy++;
+        JButton openFileDialogButton = new JButton("Open inputs");
+        openFileDialogButton.addActionListener(e -> {
+            fileChooser.showOpenDialog(MainFrame.this);
+        });
+        controlPanel.add(openFileDialogButton, gbc);
+
+
     }
+
+    private ViewPanel setupGraph() {
+        graph = new GraphicGraph("Tutorial 1");
+        setGraphStyles();
+
+        Viewer viewer = new Viewer(graph, Viewer.ThreadingModel.GRAPH_IN_GUI_THREAD);
+
+        Layout layout = Layouts.newLayoutAlgorithm();
+        layout.setForce(layout.getForce() / 10);
+        viewer.enableAutoLayout(layout);
+        ViewPanel view = viewer.addDefaultView(false);
+        view.addKeyListener(new KeyAdapter() {
+            public boolean autoLayout = true;
+
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyChar() == 'r') { //reset
+                    view.getCamera().resetView();
+                    viewer.enableAutoLayout();
+                }
+                if (e.getKeyChar() == 'c') { //make connection
+                    if (selectedNode == null) {
+                        graphMouseManager.getSelectedElement().ifPresent(ge -> {
+                            if (ge instanceof GraphicNode) {
+                                selectedNode = (GraphicNode) ge;
+                                System.out.println("Selected node " + selectedNode.getId());
+                            } else {
+                                System.out.println("Node not selected");
+                            }
+                        });
+                    } else {
+                        graphMouseManager.getSelectedElement().ifPresent(ge -> {
+                            createConnectionBetween(selectedNode, ge);
+                            selectedNode = null;
+                        });
+                    }
+                }
+                if (e.getKeyChar() == 'd') {
+                    //TODO removal
+//                    graphMouseManager.getSelectedElement().ifPresent(ge -> {
+//                        if (ge instanceof GraphicEdge) {
+//                            GraphicEdge edge = (GraphicEdge) ge;
+//                            graph.removeEdge(edge.from, edge.to);
+//                            Connection connection = edge.getAttribute("connection");
+//                            connection.getFrom().getIncoming().remove(connection);
+//                            connection.getFrom().getOutgoing().remove(connection);
+//                        }
+//                        else if (ge instanceof GraphicNode) {
+//                            graph.removeNode(ge.getId());
+//                        }
+//                    });
+                }
+                if (e.getKeyChar() == 'a') {
+                    if (autoLayout) {
+                        System.out.println("Auto layout disabled");
+                        viewer.disableAutoLayout();
+                        view.getCamera().setAutoFitView(autoLayout);
+                    } else {
+                        System.out.println("Auto layout enabled");
+                        view.getCamera().setAutoFitView(autoLayout);
+                        viewer.enableAutoLayout();
+                    }
+                    autoLayout = !autoLayout;
+                }
+            }
+        });
+
+        view.addMouseWheelListener(e -> { //zooming
+            double diff = e.getPreciseWheelRotation() * e.getScrollAmount() * 0.05;
+            double viewPercent = view.getCamera().getViewPercent();
+            view.getCamera().setViewPercent(viewPercent + diff);
+        });
+        graphMouseManager = new GraphMouseManager(graph, view);
+        view.addMouseListener(graphMouseManager);
+        return view;
+    }
+
+    private void parseInputFile(File selectedFile) {
+        try {
+            inputs = Files.lines(selectedFile.toPath())
+                    .flatMap(INPUT_SEPARATOR_PATTERN::splitAsStream)
+                    .map(input -> {
+                        Matcher m = SINGLE_INPUT_PATTERN.matcher(input);
+                        if (!m.find()) {
+                            String msg = format("Input %s cannot be matched with desired format", input);
+                            JOptionPane.showMessageDialog(MainFrame.this, msg);
+                            throw new RuntimeException(msg);
+                        }
+                        String id = m.group(1);
+                        Double value = Double.parseDouble(m.group(2));
+                        return new Pair<>(id, value);
+                    })
+                    .collect(groupingBy(Pair::getKey, mapping(Pair::getValue, toList())));
+        } catch (IOException e1) {
+            e1.printStackTrace();
+        }
+    }
+
 
     private void setGraphStyles() {
         try (BufferedReader br = new BufferedReader(new InputStreamReader(getClass()
@@ -248,15 +294,25 @@ public class MainFrame extends JFrame {
                 MyNode node = MyNode.wrap(n);
                 if (node.hasClass("input")) {
                     InputNeuron inputNeuron = n.getAttribute(NEURON_ATTRIBUTE);
+                    if (!inputs.isEmpty()) {
+                        inputNeuron.setInput(inputs.get(n.getId().replace(INPUT_NODE_PREFIX, "")).get(inputIndex));
+                    }
                     inputNeurons.add(inputNeuron);
                 } else if (node.hasClass("output")) {
                     Neuron neuron = n.getAttribute(NEURON_ATTRIBUTE);
                     outputNeurons.add(neuron);
                 }
             }
+
+
             NeuralNetwork nn = new NeuralNetwork(inputNeurons, outputNeurons);
             double[] outputVector = nn.process();
             System.out.println(Arrays.toString(outputVector));
+
+            if (!inputs.isEmpty()) {
+                inputIndex++; //move to next input/ouput vector
+                inputIndex %= inputs.values().iterator().next().size(); //make it cycle
+            }
             try (FileWriter fileWriter = new FileWriter("output.json", false)) {
 
                 String input = inputNeurons.stream()
@@ -264,6 +320,7 @@ public class MainFrame extends JFrame {
                         .mapToObj(Double::toString)
                         .collect(joining(", "));
                 String output = Arrays.stream(outputVector)
+                        .sorted()
                         .mapToObj(Double::toString)
                         .collect(joining(", "));
                 fileWriter.write(format("Input: %s\nResult: %s", input, output));
@@ -284,10 +341,13 @@ public class MainFrame extends JFrame {
 
     private void addInputNode() {
         Node node = addNodeAction(INPUT_NODE_PREFIX);
-        InputNeuron neuron = new InputNeuron(node.getId(), 1, selectedTransferFunction);
+        InputNeuron neuron = new InputNeuron(node.getId(), 1, proxyTransferFunction);
 
         neuron.setListener(v -> {
-            node.setAttribute(MyNode.LABEL_ATTRIBUTE_NAME, format("%.2f", v));
+            sleep(300);
+            String inputId = node.getId().substring(INPUT_NODE_PREFIX.length());
+            String formatted = format("[Id: %s][%s]", inputId, v);
+            node.setAttribute(MyNode.LABEL_ATTRIBUTE_NAME, formatted);
         });
         node.setAttribute(MyNode.CLASS_ATTRIBUTE_NAME, "input");
         node.setAttribute(NEURON_ATTRIBUTE, neuron);
@@ -295,16 +355,24 @@ public class MainFrame extends JFrame {
 
     private void addInternalNode() {
         Node node = addNodeAction(INTERNAL_NODE_PREFIX);
-        Neuron neuron = new Neuron(node.getId(), selectedTransferFunction);
-        neuron.setListener(v -> node.setAttribute(MyNode.LABEL_ATTRIBUTE_NAME, format("%.2f", v)));
+        Neuron neuron = new Neuron(node.getId(), proxyTransferFunction);
+        neuron.setListener(v -> {
+            sleep(300);
+            node.setAttribute(MyNode.LABEL_ATTRIBUTE_NAME, format("%.2f ", v));
+        });
         node.setAttribute(NEURON_ATTRIBUTE, neuron);
         node.setAttribute(MyNode.CLASS_ATTRIBUTE_NAME, "internal");
     }
 
     private void addOutputNode() {
         Node node = addNodeAction(OUTPUT_NODE_PREFIX);
-        Neuron neuron = new Neuron(node.getId(), selectedTransferFunction);
-        neuron.setListener(v -> node.setAttribute(MyNode.LABEL_ATTRIBUTE_NAME, format("%.2f", v)));
+        Neuron neuron = new Neuron(node.getId(), proxyTransferFunction);
+        neuron.setListener(v -> {
+            sleep(300);
+            String inputId = node.getId().substring(OUTPUT_NODE_PREFIX.length());
+            String formatted = format("[Id: %s][%s]", inputId, v);
+            node.setAttribute(MyNode.LABEL_ATTRIBUTE_NAME, format("%.2f", v));
+        });
         node.setAttribute(NEURON_ATTRIBUTE, neuron);
         node.setAttribute(MyNode.CLASS_ATTRIBUTE_NAME, "output");
     }
