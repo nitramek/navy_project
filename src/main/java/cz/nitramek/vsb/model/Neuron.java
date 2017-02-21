@@ -42,6 +42,7 @@ public class Neuron {
         double output = this.incoming.stream()
                 .mapToDouble(Connection::getIncomingData)
                 .sum();
+        output = transferFunction.transfer(output);
         fireNeuronValuePass(output);
         return output;
     }

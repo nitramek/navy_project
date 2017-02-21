@@ -21,6 +21,6 @@ public class InputNeuron extends Neuron {
     @Override
     public double process() {
         fireNeuronValuePass(input);
-        return this.input;
+        return input;
     }
 }

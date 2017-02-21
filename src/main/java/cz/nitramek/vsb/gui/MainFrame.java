@@ -58,14 +58,7 @@ public class MainFrame extends JFrame {
         graph = new GraphicGraph("Tutorial 1");
 
 
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(getClass()
-                .getResourceAsStream("/styles.css")))) {
-            String styles = br.lines()
-                    .collect(joining());
-            graph.addAttribute("ui.stylesheet", styles);
-        } catch (FileSystemNotFoundException | IOException e) {
-            e.printStackTrace();
-        }
+        setGraphStyles();
 
         Viewer viewer = new Viewer(graph, Viewer.ThreadingModel.GRAPH_IN_GUI_THREAD);
 
@@ -150,8 +143,12 @@ public class MainFrame extends JFrame {
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.gridy = 0;
-        ComboItem[] comboItems = {new
-                ComboItem(TransferFunction.BINARY, () -> "Binary")};
+        ComboItem[] comboItems = {
+                new ComboItem(TransferFunction.PERCEPTRON, "Perceptron"),
+                new ComboItem(TransferFunction.BINARY, "Binary"),
+                new ComboItem(TransferFunction.HYPERBOLIC, "Hyperbolic"),
+                new ComboItem(TransferFunction.LOGISTIC, "Logistic"),
+        };
         JComboBox<ComboItem> transferFunctionJComboBox = new JComboBox<>(comboItems);
 
         transferFunctionJComboBox.addActionListener(e -> {
@@ -169,7 +166,11 @@ public class MainFrame extends JFrame {
 
         gbc.gridy++;
         JButton cleanButton = new JButton("Clean graph");
-        cleanButton.addActionListener(e -> graph.clear());
+        cleanButton.addActionListener(e -> {
+            graph.clear();
+            setGraphStyles();
+            itemNextId = 0;
+        });
         controlPanel.add(cleanButton, gbc);
 
 
@@ -211,6 +212,17 @@ public class MainFrame extends JFrame {
         controlPanel.add(changeInputValue, gbc);
     }
 
+    private void setGraphStyles() {
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(getClass()
+                .getResourceAsStream("/styles.css")))) {
+            String styles = br.lines()
+                    .collect(joining());
+            graph.addAttribute("ui.stylesheet", styles);
+        } catch (FileSystemNotFoundException | IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     private void createConnectionBetween(GraphicNode fromNode, GraphicElement toNode) {
         Edge edge = graph.addEdge(EDGE_PREFIX + itemNextId,
                 this.selectedNode.getId(), toNode.getId(), true);
@@ -220,8 +232,9 @@ public class MainFrame extends JFrame {
         fromNeuron.getOutgoing().add(connection);
         toNeuron.getIncoming().add(connection);
         edge.setAttribute("connection", connection);
-        connection.setListener(v -> edge.setAttribute(MyNode.LABEL_ATTRIBUTE_NAME, String.valueOf
-                (connection.getWeight())));
+        connection.setListener(v -> {
+            edge.setAttribute(MyNode.LABEL_ATTRIBUTE_NAME, format("%.2f", connection.getWeight()));
+        });
         itemNextId++;
         System.out.println(format("Added edge from %s to %s", this.selectedNode
                 .getId(), toNode.getId()));
@@ -253,7 +266,7 @@ public class MainFrame extends JFrame {
                 String output = Arrays.stream(outputVector)
                         .mapToObj(Double::toString)
                         .collect(joining(", "));
-                fileWriter.write(String.format("Input: %s\nResult: %s", input, output));
+                fileWriter.write(format("Input: %s\nResult: %s", input, output));
 
             } catch (IOException e) {
                 e.printStackTrace();
@@ -273,7 +286,9 @@ public class MainFrame extends JFrame {
         Node node = addNodeAction(INPUT_NODE_PREFIX);
         InputNeuron neuron = new InputNeuron(node.getId(), 1, selectedTransferFunction);
 
-        neuron.setListener(v -> node.setAttribute(MyNode.LABEL_ATTRIBUTE_NAME, String.valueOf(v)));
+        neuron.setListener(v -> {
+            node.setAttribute(MyNode.LABEL_ATTRIBUTE_NAME, format("%.2f", v));
+        });
         node.setAttribute(MyNode.CLASS_ATTRIBUTE_NAME, "input");
         node.setAttribute(NEURON_ATTRIBUTE, neuron);
     }
@@ -281,7 +296,7 @@ public class MainFrame extends JFrame {
     private void addInternalNode() {
         Node node = addNodeAction(INTERNAL_NODE_PREFIX);
         Neuron neuron = new Neuron(node.getId(), selectedTransferFunction);
-        neuron.setListener(v -> node.setAttribute(MyNode.LABEL_ATTRIBUTE_NAME, String.valueOf(v)));
+        neuron.setListener(v -> node.setAttribute(MyNode.LABEL_ATTRIBUTE_NAME, format("%.2f", v)));
         node.setAttribute(NEURON_ATTRIBUTE, neuron);
         node.setAttribute(MyNode.CLASS_ATTRIBUTE_NAME, "internal");
     }
@@ -289,7 +304,7 @@ public class MainFrame extends JFrame {
     private void addOutputNode() {
         Node node = addNodeAction(OUTPUT_NODE_PREFIX);
         Neuron neuron = new Neuron(node.getId(), selectedTransferFunction);
-        neuron.setListener(v -> node.setAttribute(MyNode.LABEL_ATTRIBUTE_NAME, String.valueOf(v)));
+        neuron.setListener(v -> node.setAttribute(MyNode.LABEL_ATTRIBUTE_NAME, format("%.2f", v)));
         node.setAttribute(NEURON_ATTRIBUTE, neuron);
         node.setAttribute(MyNode.CLASS_ATTRIBUTE_NAME, "output");
     }
@@ -302,6 +317,10 @@ public class MainFrame extends JFrame {
         public ComboItem(TransferFunction item, Supplier<String> stringSupplier) {
             this.item = item;
             this.stringSupplier = stringSupplier;
+        }
+
+        public ComboItem(TransferFunction item, String label) {
+            this(item, () -> label);
         }
 
         @Override
