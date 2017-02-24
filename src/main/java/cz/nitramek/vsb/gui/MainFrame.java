@@ -61,6 +61,7 @@ public class MainFrame extends JFrame {
     public static final Pattern SINGLE_INPUT_PATTERN = Pattern.compile("\\s*\\[([0-9]+),([0-9]+)\\]\\s*");
     public static final Pattern INPUT_SEPARATOR_PATTERN = Pattern.compile(";");
     private final JLabel epochLabel;
+    private final JButton switchLearningButton;
     private boolean isLearning = true;
     private GraphicGraph graph;
     private GraphMouseManager graphMouseManager;
@@ -164,16 +165,16 @@ public class MainFrame extends JFrame {
         controlPanel.add(openFileDialogButton, gbc);
 
         gbc.gridy++;
-        JButton switchLearning = new JButton("Stop learning");
-        switchLearning.addActionListener(e -> {
+        switchLearningButton = new JButton("Stop learning");
+        switchLearningButton.addActionListener(e -> {
             if (isLearning) {
-                switchLearning.setText("Start Learning");
+                switchLearningButton.setText("Start Learning");
             } else {
-                switchLearning.setText("Stop learning");
+                switchLearningButton.setText("Stop learning");
             }
             isLearning = !isLearning;
         });
-        controlPanel.add(switchLearning, gbc);
+        controlPanel.add(switchLearningButton, gbc);
 
         gbc.gridy++;
         JButton openLearningDialog = new JButton("Learning options");
@@ -209,6 +210,8 @@ public class MainFrame extends JFrame {
         JButton start = new JButton("Start Learning");
         start.addActionListener(ae -> {
             MainFrame.this.startComputation(ae);
+            isLearning = true;
+            switchLearningButton.setText("Stop learning");
             learningDialog.setVisible(false);
         });
         learningDialog.add(start);
@@ -420,14 +423,22 @@ public class MainFrame extends JFrame {
                         in.setInput(inputs.get(in.getId().replace(INPUT_NODE_PREFIX, "")).get(inputIndex));
                     });
                 }
-
-            } while (!isLearning || (autoLearning && currentEpoch < maxEpochs));
+                if (!isLearning) {
+                    break;
+                }
+            } while ((autoLearning && currentEpoch < maxEpochs));
 
         });
         workingThread.start();
     }
 
     private void saveLearningProcess(List<double[]> inputVectors, List<double[]> outputVectors) {
+
+        isLearning = false;
+        switchLearningButton.setText("Start learning");
+        JOptionPane.showMessageDialog(this, format("Learning took %s epochs", currentEpoch));
+        currentEpoch = 0;
+
         try (FileWriter fw = new FileWriter("output.neuronLearn", false)) {
 
             int epochIndex = 0;
