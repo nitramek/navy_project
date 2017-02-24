@@ -22,6 +22,8 @@ public class Neuron {
     private List<Connection> outgoing;
     private ValueListener listener;
 
+    private double hiddenWeight;
+
     /**
      * Constructs neuron with empty array of incoming connections
      */
@@ -30,6 +32,7 @@ public class Neuron {
         this.transferFunction = transferFunction;
         this.incoming = new ArrayList<>();
         this.outgoing = new ArrayList<>();
+        this.hiddenWeight = Math.random() * 2 - 1;
     }
 
     protected void fireNeuronValuePass(double value) {
@@ -42,6 +45,7 @@ public class Neuron {
         double output = this.incoming.stream()
                 .mapToDouble(Connection::getIncomingData)
                 .sum();
+        output += hiddenWeight;
         output = transferFunction.transfer(output);
         fireNeuronValuePass(output);
         return output;
