@@ -52,6 +52,7 @@ import static java.util.stream.Collectors.toList;
 
 public class MainFrame extends JFrame {
 
+
     public static final String INPUT_NODE_PREFIX = "Input_";
     public static final String OUTPUT_NODE_PREFIX = "Output_";
     public static final String INTERNAL_NODE_PREFIX = "Internal_";
@@ -59,19 +60,20 @@ public class MainFrame extends JFrame {
     public static final String NEURON_ATTRIBUTE = "ui.neuron";
     public static final Pattern SINGLE_INPUT_PATTERN = Pattern.compile("\\s*\\[([0-9]+),([0-9]+)\\]\\s*");
     public static final Pattern INPUT_SEPARATOR_PATTERN = Pattern.compile(";");
+    private final JLabel epochLabel;
     private boolean isLearning = true;
     private GraphicGraph graph;
     private GraphMouseManager graphMouseManager;
     private int itemNextId = 0;
     private GraphicNode selectedNode;
-
     private TransferFunction selectedTransferFunction;
     private TransferFunction proxyTransferFunction = input -> selectedTransferFunction.transfer(input);
-
     private Map<String, List<Double>> inputs = new HashMap<>();
     private int inputIndex = 0;
-
+    private int currentEpoch = 0;
     private NeuralNetwork nn;
+    private int maxEpochs = 10;
+    private boolean autoLearning = true;
 
     public MainFrame() {
         super("Navy!");
@@ -151,6 +153,7 @@ public class MainFrame extends JFrame {
             File selectedFile = fileChooser.getSelectedFile();
             if (selectedFile != null) {
                 parseInputFile(selectedFile);
+                openLearningDialog();
             }
         });
         gbc.gridy++;
@@ -164,15 +167,54 @@ public class MainFrame extends JFrame {
         JButton switchLearning = new JButton("Stop learning");
         switchLearning.addActionListener(e -> {
             if (isLearning) {
-                switchLearning.setText("Stop Learning");
+                switchLearning.setText("Start Learning");
             } else {
-                switchLearning.setText("Start learning");
+                switchLearning.setText("Stop learning");
             }
             isLearning = !isLearning;
         });
         controlPanel.add(switchLearning, gbc);
 
+        gbc.gridy++;
+        JButton openLearningDialog = new JButton("Learning options");
+        openLearningDialog.addActionListener(e -> openLearningDialog());
+        controlPanel.add(openLearningDialog, gbc);
 
+        gbc.gridy++;
+        epochLabel = new JLabel("Current epoch: 0");
+        controlPanel.add(epochLabel, gbc);
+
+    }
+
+    private void openLearningDialog() {
+        JDialog learningDialog = new JDialog(this, "Learning", true);
+        learningDialog.getContentPane().setLayout(new GridLayout(3, 2));
+        learningDialog.add(new JLabel("Max epochs"));
+        SpinnerModel model = new SpinnerNumberModel(10, 0, 1000, 1);
+        model.addChangeListener(l -> maxEpochs = (Integer) model.getValue());
+        JSpinner spinner = new JSpinner(model);
+        learningDialog.add(spinner);
+
+        learningDialog.add(new JLabel("Auto learn"));
+        JCheckBox autoLearnCheckbox = new JCheckBox();
+        autoLearnCheckbox.setSelected(true);
+        autoLearnCheckbox.addChangeListener(l -> autoLearning = autoLearnCheckbox.isSelected());
+        learningDialog.add(autoLearnCheckbox);
+
+        JButton cancel = new JButton("Cancel");
+        cancel.addActionListener(ee -> learningDialog.setVisible(false));
+        learningDialog.add(cancel);
+
+
+        JButton start = new JButton("Start Learning");
+        start.addActionListener(ae -> {
+            MainFrame.this.startComputation(ae);
+            learningDialog.setVisible(false);
+        });
+        learningDialog.add(start);
+
+        learningDialog.pack();
+        learningDialog.setVisible(true);
     }
 
     private ViewPanel setupGraph() {
@@ -193,6 +235,9 @@ public class MainFrame extends JFrame {
                 if (e.getKeyChar() == 'r') { //reset
                     view.getCamera().resetView();
                     viewer.enableAutoLayout();
+                }
+                if (e.getKeyCode() == KeyEvent.VK_F5) {
+                    startComputation(null);
                 }
                 if (e.getKeyChar() == 'c') { //make connection
                     if (selectedNode == null) {
@@ -303,72 +348,124 @@ public class MainFrame extends JFrame {
 
     private void startComputation(ActionEvent actionEvent) {
         Thread workingThread = new Thread(() -> {
-            if (nn == null) {
-                List<InputNeuron> inputNeurons = new ArrayList<>();
-                List<Neuron> outputNeurons = new ArrayList<>();
-                for (Node n : graph.getNodeSet()) {
-                    MyNode node = MyNode.wrap(n);
-                    if (node.hasClass("input")) {
-                        InputNeuron inputNeuron = n.getAttribute(NEURON_ATTRIBUTE);
-                        if (!inputs.isEmpty()) {
-                            inputNeuron.setInput(inputs.get(n.getId().replace(INPUT_NODE_PREFIX, "")).get
-                                    (inputIndex));
-                        }
-                        inputNeurons.add(inputNeuron);
-                    } else if (node.hasClass("output")) {
-                        Neuron neuron = n.getAttribute(NEURON_ATTRIBUTE);
-                        outputNeurons.add(neuron);
-                    }
-                }
-                nn = new NeuralNetwork(inputNeurons, outputNeurons);
-
-            }
-            System.out.println("Neuron network process");
-            double[] outputVector = nn.process();
-
-            if (!inputs.isEmpty()) {
-                if (isLearning) {
-                    nn.getOutputs().sort(Comparator.comparing(Neuron::getId));
-                    int order = 0;
-                    for (Neuron outputNeuron : nn.getOutputs()) {
-                        String outputId = outputNeuron.getId().replace(OUTPUT_NODE_PREFIX, "");
-                        Double desiredResult = inputs.get(outputId).get(inputIndex);
-                        double actualResult = outputVector[order++];
-                        System.out.println(format("Desired result is %s, actual is %s", desiredResult, actualResult));
-                        double delta = desiredResult - actualResult;
-                        if (desiredResult != actualResult) {
-                            outputNeuron.setHiddenWeight(outputNeuron.getHiddenWeight() + 0.33 * delta);
-                            outputNeuron.getIncoming().forEach(c -> {
-                                double input = ((InputNeuron) c.getFrom()).getInput();
-                                c.setWeight(c.getWeight() + 0.33 * input * delta);
-                            });
+            List<double[]> inputVectors = new ArrayList<>();
+            List<double[]> outputVectors = new ArrayList<>();
+            boolean noMistakesEpoch = true;
+            do {
+                if (nn == null) {
+                    List<InputNeuron> inputNeurons = new ArrayList<>();
+                    List<Neuron> outputNeurons = new ArrayList<>();
+                    for (Node n : graph.getNodeSet()) {
+                        MyNode node = MyNode.wrap(n);
+                        if (node.hasClass("input")) {
+                            InputNeuron inputNeuron = n.getAttribute(NEURON_ATTRIBUTE);
+                            if (!inputs.isEmpty()) {
+                                inputNeuron.setInput(inputs.get(n.getId().replace(INPUT_NODE_PREFIX, "")).get
+                                        (inputIndex));
+                            }
+                            inputNeurons.add(inputNeuron);
+                        } else if (node.hasClass("output")) {
+                            Neuron neuron = n.getAttribute(NEURON_ATTRIBUTE);
+                            outputNeurons.add(neuron);
                         }
                     }
+                    nn = new NeuralNetwork(inputNeurons, outputNeurons);
+
                 }
-                inputIndex++; //move to next input/ouput vector
-                inputIndex %= inputs.values().iterator().next().size(); //make it cycle
-                nn.getInputs().forEach(in -> {
+                System.out.println("Neuron network process");
+                double[] outputVector = nn.process();
 
-                    in.setInput(inputs.get(in.getId().replace(INPUT_NODE_PREFIX, "")).get(inputIndex));
-                });
-            }
-            try (FileWriter fileWriter = new FileWriter("output.json", false)) {
+                if (!inputs.isEmpty()) {
+                    if (isLearning) {
+                        double[] inputVector = nn.getInputs().stream()
+                                .sorted(Comparator.comparing(Neuron::getId))
+                                .mapToDouble(InputNeuron::getInput)
+                                .toArray();
+                        inputVectors.add(inputVector);
+                        nn.getOutputs().sort(Comparator.comparing(Neuron::getId));
+                        outputVectors.add(outputVector);
+                        int order = 0;
+                        for (Neuron outputNeuron : nn.getOutputs()) {
+                            String outputId = outputNeuron.getId().replace(OUTPUT_NODE_PREFIX, "");
+                            Double desiredResult = inputs.get(outputId).get(inputIndex);
+                            double actualResult = outputVector[order++];
+                            System.out.println(format("Desired result is %s, actual is %s", desiredResult,
+                                    actualResult));
 
-                String input = nn.getInputs().stream()
-                        .mapToDouble(InputNeuron::getInput)
-                        .mapToObj(Double::toString)
-                        .collect(joining(", "));
-                String output = Arrays.stream(outputVector)
-                        .sorted()
-                        .mapToObj(Double::toString)
-                        .collect(joining(", "));
-                fileWriter.write(format("Input: %s\nResult: %s", input, output));
+                            double delta = desiredResult - actualResult;
+                            if (desiredResult != actualResult) {
+                                noMistakesEpoch = false;
+                                outputNeuron.setHiddenWeight(outputNeuron.getHiddenWeight() + 0.33 * delta);
+                                outputNeuron.getIncoming().forEach(c -> {
+                                    double input = ((InputNeuron) c.getFrom()).getInput();
+                                    c.setWeight(c.getWeight() + 0.33 * input * delta);
+                                });
+                            }
+                        }
+                    }
+                    inputIndex++; //move to next input/ouput vector
+                    inputIndex %= inputs.values().iterator().next().size(); //make it cycle
+                    if (inputIndex == 0) {
+                        currentEpoch++;
+                        if (isLearning) {
+                            updateEpochLabel();
+                            if (noMistakesEpoch) {
+                                saveLearningProcess(inputVectors, outputVectors);
+                                break;
+                            }
+                            noMistakesEpoch = true;
+                        }
+                    }
+                    nn.getInputs().forEach(in -> {
+                        in.setInput(inputs.get(in.getId().replace(INPUT_NODE_PREFIX, "")).get(inputIndex));
+                    });
+                }
 
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            } while (!isLearning || (autoLearning && currentEpoch < maxEpochs));
+
         });
         workingThread.start();
+    }
+
+    private void saveLearningProcess(List<double[]> inputVectors, List<double[]> outputVectors) {
+        try (FileWriter fw = new FileWriter("output.neuronLearn", false)) {
+
+            int epochIndex = 0;
+            int inputCount = 0;
+            int epochInputCount = inputs.get("0").size();
+            for (int i = 0; i < inputVectors.size(); i++) {
+                if (inputCount % epochInputCount == 0) {
+                    fw.append("Epoch");
+                    fw.append(String.valueOf(epochIndex));
+                    fw.append(":\n");
+                }
+                fw.append("In: ");
+                String input = Arrays.stream(inputVectors.get(i)).mapToObj(String::valueOf).collect(joining(", "));
+                fw.append(input);
+                fw.append("\n");
+                fw.append("Out: ");
+                String output = Arrays.stream(outputVectors.get(i)).mapToObj(String::valueOf).collect(joining(", "));
+                fw.append(output);
+                inputCount++;
+                inputCount %= epochInputCount;
+                if (inputCount == 0) {
+                    epochIndex++;
+                    fw.append("\n---------------next-epoch-----------------------\n");
+                } else {
+                    fw.append("\n---------------next-batch---------------------\n");
+                }
+
+
+                epochIndex++;
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void updateEpochLabel() {
+        epochLabel.setText("Current epoch: " + currentEpoch);
     }
 
     private Node addNodeAction(String prefix) {
