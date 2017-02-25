@@ -46,7 +46,7 @@ public class Neuron {
                 .mapToDouble(Connection::getIncomingData)
                 .sum();
         output += hiddenWeight;
-        output = transferFunction.transfer(output);
+        output = transferFunction.transfer(output, 1);
         fireNeuronValuePass(output);
         return output;
     }

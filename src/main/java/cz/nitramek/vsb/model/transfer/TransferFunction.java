@@ -11,9 +11,9 @@ public interface TransferFunction extends DoubleUnaryOperator {
 
     @Override
     default double applyAsDouble(double operand) {
-        return transfer(operand);
+        return transfer(operand, 1);
     }
 
-    double transfer(double input);
+    double transfer(double input, double k);
 
 }
