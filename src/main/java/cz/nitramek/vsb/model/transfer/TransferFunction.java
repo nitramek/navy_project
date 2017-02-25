@@ -1,8 +1,8 @@
 package cz.nitramek.vsb.model.transfer;
 
-import java.util.function.DoubleUnaryOperator;
+import java.util.function.DoubleBinaryOperator;
 
-public interface TransferFunction extends DoubleUnaryOperator {
+public interface TransferFunction extends DoubleBinaryOperator {
 
     TransferFunction BINARY = new BinaryTransfer();
     TransferFunction LOGISTIC = new LogisticTransfer();
@@ -10,9 +10,10 @@ public interface TransferFunction extends DoubleUnaryOperator {
     TransferFunction HYPERBOLIC = new HyperbolicTangensTransfer();
 
     @Override
-    default double applyAsDouble(double operand) {
-        return transfer(operand, 1);
+    default double applyAsDouble(double left, double right) {
+        return transfer(left, right);
     }
+
 
     double transfer(double input, double k);
 

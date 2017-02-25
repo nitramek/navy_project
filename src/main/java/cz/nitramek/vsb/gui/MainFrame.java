@@ -50,6 +50,7 @@ import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.mapping;
 import static java.util.stream.Collectors.toList;
 
+@SuppressWarnings("CodeBlock2Expr")
 public class MainFrame extends JFrame {
 
 
@@ -68,7 +69,7 @@ public class MainFrame extends JFrame {
     private int itemNextId = 0;
     private GraphicNode selectedNode;
     private TransferFunction selectedTransferFunction;
-    private TransferFunction proxyTransferFunction = (input, k) -> selectedTransferFunction.transfer(input, 1);
+    private TransferFunction proxyTransferFunction = (input, k) -> selectedTransferFunction.transfer(input, k);
     private Map<String, List<Double>> inputs = new HashMap<>();
     private int inputIndex = 0;
     private int currentEpoch = 0;
