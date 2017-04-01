@@ -21,36 +21,33 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.file.FileSystemNotFoundException;
-import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Supplier;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
 import cz.nitramek.vsb.MyNode;
+import cz.nitramek.vsb.Tuple;
 import cz.nitramek.vsb.model.Connection;
 import cz.nitramek.vsb.model.InputNeuron;
+import cz.nitramek.vsb.model.NeuralLearning;
 import cz.nitramek.vsb.model.NeuralNetwork;
 import cz.nitramek.vsb.model.Neuron;
 import cz.nitramek.vsb.model.transfer.TransferFunction;
-import javafx.util.Pair;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import static java.lang.String.format;
-import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.joining;
-import static java.util.stream.Collectors.mapping;
-import static java.util.stream.Collectors.toList;
+
 
 @SuppressWarnings("CodeBlock2Expr")
+@Slf4j
 public class MainFrame extends JFrame {
 
 
@@ -59,10 +56,10 @@ public class MainFrame extends JFrame {
     public static final String INTERNAL_NODE_PREFIX = "Internal_";
     public static final String EDGE_PREFIX = "Edge_";
     public static final String NEURON_ATTRIBUTE = "ui.neuron";
-    public static final Pattern SINGLE_INPUT_PATTERN = Pattern.compile("\\s*\\[([0-9]+),([0-9]+)\\]\\s*");
-    public static final Pattern INPUT_SEPARATOR_PATTERN = Pattern.compile(";");
     private final JLabel epochLabel;
     private final JButton switchLearningButton;
+    private final JTextField inputField;
+    private File selectedTrainingSetFile;
     private boolean isLearning = true;
     private GraphicGraph graph;
     private GraphMouseManager graphMouseManager;
@@ -70,12 +67,10 @@ public class MainFrame extends JFrame {
     private GraphicNode selectedNode;
     private TransferFunction selectedTransferFunction;
     private TransferFunction proxyTransferFunction = (input, k) -> selectedTransferFunction.transfer(input, k);
-    private Map<String, List<Double>> inputs = new HashMap<>();
-    private int inputIndex = 0;
-    private int currentEpoch = 0;
     private NeuralNetwork nn;
     private int maxEpochs = 10;
-    private boolean autoLearning = true;
+    private boolean autoLearn = true;
+    private NeuralLearning neuralLearning;
 
     public MainFrame() {
         super("Navy!");
@@ -154,12 +149,12 @@ public class MainFrame extends JFrame {
         fileChooser.addActionListener(e -> {
             File selectedFile = fileChooser.getSelectedFile();
             if (selectedFile != null) {
-                parseInputFile(selectedFile);
+                this.selectedTrainingSetFile = selectedFile;
                 openLearningDialog();
             }
         });
         gbc.gridy++;
-        JButton openFileDialogButton = new JButton("Open inputs");
+        JButton openFileDialogButton = new JButton("Open inputNeurons");
         openFileDialogButton.addActionListener(e -> {
             fileChooser.showOpenDialog(MainFrame.this);
         });
@@ -186,6 +181,13 @@ public class MainFrame extends JFrame {
         epochLabel = new JLabel("Current epoch: 0");
         controlPanel.add(epochLabel, gbc);
 
+        gbc.gridy++;
+        controlPanel.add(new JLabel("Input:"));
+
+        gbc.gridy++;
+        inputField = new JTextField();
+        controlPanel.add(inputField, gbc);
+
     }
 
     private void openLearningDialog() {
@@ -197,10 +199,10 @@ public class MainFrame extends JFrame {
         JSpinner spinner = new JSpinner(model);
         learningDialog.add(spinner);
 
-        learningDialog.add(new JLabel("Auto learn"));
+        learningDialog.add(new JLabel("Auto learnWithTeacher"));
         JCheckBox autoLearnCheckbox = new JCheckBox();
         autoLearnCheckbox.setSelected(true);
-        autoLearnCheckbox.addChangeListener(l -> autoLearning = autoLearnCheckbox.isSelected());
+        autoLearnCheckbox.addChangeListener(l -> autoLearn = autoLearnCheckbox.isSelected());
         learningDialog.add(autoLearnCheckbox);
 
         JButton cancel = new JButton("Cancel");
@@ -210,9 +212,12 @@ public class MainFrame extends JFrame {
 
         JButton start = new JButton("Start Learning");
         start.addActionListener(ae -> {
-            MainFrame.this.startComputation(ae);
             isLearning = true;
             switchLearningButton.setText("Stop learning");
+            nn = prepareANN();
+            neuralLearning = new NeuralLearning(FileData.parseInputFile(selectedTrainingSetFile));
+            neuralLearning.startLearning();
+            MainFrame.this.startComputation(ae);
             learningDialog.setVisible(false);
         });
         learningDialog.add(start);
@@ -289,7 +294,6 @@ public class MainFrame extends JFrame {
                 }
             }
         });
-
         view.addMouseWheelListener(e -> { //zooming
             double diff = e.getPreciseWheelRotation() * e.getScrollAmount() * 0.05;
             double viewPercent = view.getCamera().getViewPercent();
@@ -298,27 +302,6 @@ public class MainFrame extends JFrame {
         graphMouseManager = new GraphMouseManager(graph, view);
         view.addMouseListener(graphMouseManager);
         return view;
-    }
-
-    private void parseInputFile(File selectedFile) {
-        try {
-            inputs = Files.lines(selectedFile.toPath())
-                    .flatMap(INPUT_SEPARATOR_PATTERN::splitAsStream)
-                    .map(input -> {
-                        Matcher m = SINGLE_INPUT_PATTERN.matcher(input);
-                        if (!m.find()) {
-                            String msg = format("Input %s cannot be matched with desired format", input);
-                            JOptionPane.showMessageDialog(MainFrame.this, msg);
-                            throw new RuntimeException(msg);
-                        }
-                        String id = m.group(1);
-                        Double value = Double.parseDouble(m.group(2));
-                        return new Pair<>(id, value);
-                    })
-                    .collect(groupingBy(Pair::getKey, mapping(Pair::getValue, toList())));
-        } catch (IOException e1) {
-            e1.printStackTrace();
-        }
     }
 
 
@@ -346,143 +329,98 @@ public class MainFrame extends JFrame {
             edge.setAttribute(MyNode.LABEL_ATTRIBUTE_NAME, format("%.2f", connection.getWeight()));
         });
         itemNextId++;
-        System.out.println(format("Added edge from %s to %s", this.selectedNode
-                .getId(), toNode.getId()));
+        System.out.println(format("Added edge from %s to %s", this.selectedNode.getId(), toNode.getId()));
     }
 
     private void startComputation(ActionEvent actionEvent) {
         Thread workingThread = new Thread(() -> {
-            List<double[]> inputVectors = new ArrayList<>();
-            List<double[]> outputVectors = new ArrayList<>();
-            boolean noMistakesEpoch = true;
-            do {
-                if (nn == null) {
-                    List<InputNeuron> inputNeurons = new ArrayList<>();
-                    List<Neuron> outputNeurons = new ArrayList<>();
-                    for (Node n : graph.getNodeSet()) {
-                        MyNode node = MyNode.wrap(n);
-                        if (node.hasClass("input")) {
-                            InputNeuron inputNeuron = n.getAttribute(NEURON_ATTRIBUTE);
-                            if (!inputs.isEmpty()) {
-                                inputNeuron.setInput(inputs.get(n.getId().replace(INPUT_NODE_PREFIX, "")).get
-                                        (inputIndex));
-                            }
-                            inputNeurons.add(inputNeuron);
-                        } else if (node.hasClass("output")) {
-                            Neuron neuron = n.getAttribute(NEURON_ATTRIBUTE);
-                            outputNeurons.add(neuron);
-                        }
-                    }
-                    nn = new NeuralNetwork(inputNeurons, outputNeurons);
-
-                }
-                System.out.println("Neuron network process");
-                double[] outputVector = nn.process();
-
-                if (!inputs.isEmpty()) {
+            System.out.println("Neuron network process");
+            if (nn == null) {
+                nn = prepareANN();
+            }
+            if (!isLearning) {
+                double[] input = Pattern.compile(";").splitAsStream(inputField.getText())
+                        .mapToDouble(Double::parseDouble)
+                        .toArray();
+                double[] process = nn.process(input);
+                System.out.println("Output is " + Arrays.toString(process));
+            } else {
+                //learning
+                if (autoLearn) {
+                    log.info("Staring auto learning");
+                    val processData = neuralLearning.learn(nn);
+                    saveLearningProcess(processData);
+                } else {
+                    log.info("Learning single step");
+                    isLearning = neuralLearning.isLearning();
                     if (isLearning) {
-                        double[] inputVector = nn.getInputs().stream()
-                                .sorted(Comparator.comparing(Neuron::getId))
-                                .mapToDouble(InputNeuron::getInput)
-                                .toArray();
-                        inputVectors.add(inputVector);
-                        nn.getOutputs().sort(Comparator.comparing(Neuron::getId));
-                        outputVectors.add(outputVector);
-                        int order = 0;
-                        for (Neuron outputNeuron : nn.getOutputs()) {
-                            String outputId = outputNeuron.getId().replace(OUTPUT_NODE_PREFIX, "");
-                            Double desiredResult = inputs.get(outputId).get(inputIndex);
-                            double actualResult = outputVector[order++];
-                            System.out.println(format("Desired result is %s, actual is %s", desiredResult,
-                                    actualResult));
-
-                            double delta = desiredResult - actualResult;
-                            if (desiredResult != actualResult) {
-                                noMistakesEpoch = false;
-                                outputNeuron.setHiddenWeight(outputNeuron.getHiddenWeight() + 0.33 * delta);
-                                outputNeuron.getIncoming().forEach(c -> {
-                                    double input = ((InputNeuron) c.getFrom()).getInput();
-                                    c.setWeight(c.getWeight() + 0.33 * input * delta);
-                                });
-                            }
-                        }
+                        neuralLearning.learningStep(nn);
+                        updateEpochLabel(neuralLearning.getEpoch());
                     }
-                    inputIndex++; //move to next input/ouput vector
-                    inputIndex %= inputs.values().iterator().next().size(); //make it cycle
-                    if (inputIndex == 0) {
-                        currentEpoch++;
-                        if (isLearning) {
-                            updateEpochLabel();
-                            if (noMistakesEpoch) {
-                                saveLearningProcess(inputVectors, outputVectors);
-                                break;
-                            }
-                            noMistakesEpoch = true;
-                        }
-                    }
-                    nn.getInputs().forEach(in -> {
-                        in.setInput(inputs.get(in.getId().replace(INPUT_NODE_PREFIX, "")).get(inputIndex));
-                    });
                 }
-                if (!isLearning) {
-                    break;
-                }
-            } while ((autoLearning && currentEpoch < maxEpochs));
-
+            }
         });
         workingThread.start();
     }
 
-    private void saveLearningProcess(List<double[]> inputVectors, List<double[]> outputVectors) {
+    private int getInputNodeId(Node n) {
+        return Integer.parseInt(n.getId().replace(INPUT_NODE_PREFIX, ""));
+    }
+
+    private NeuralNetwork prepareANN() {
+        List<InputNeuron> inputNeurons = new ArrayList<>();
+        List<Neuron> outputNeurons = new ArrayList<>();
+        for (Node n : graph.getNodeSet()) {
+            MyNode node = MyNode.wrap(n);
+            if (node.hasClass("input")) {
+                InputNeuron inputNeuron = n.getAttribute(NEURON_ATTRIBUTE);
+                inputNeurons.add(inputNeuron);
+            } else if (node.hasClass("output")) {
+                Neuron neuron = n.getAttribute(NEURON_ATTRIBUTE);
+                outputNeurons.add(neuron);
+            }
+        }
+        return new NeuralNetwork(inputNeurons, outputNeurons);
+    }
+
+    private void saveLearningProcess(List<List<Tuple<double[], double[]>>> outputVectors) {
 
         isLearning = false;
         switchLearningButton.setText("Start learning");
-        JOptionPane.showMessageDialog(this, format("Learning took %s epochs", currentEpoch));
-        currentEpoch = 0;
+        JOptionPane.showMessageDialog(this, format("Learning took %s epochs", neuralLearning.getEpoch()));
 
         try (FileWriter fw = new FileWriter("output.neuronLearn", false)) {
-
-            int epochIndex = 0;
-            int inputCount = 0;
-            int epochInputCount = inputs.get("0").size();
-            for (int i = 0; i < inputVectors.size(); i++) {
-                if (inputCount % epochInputCount == 0) {
-                    fw.append("Epoch");
-                    fw.append(String.valueOf(epochIndex));
-                    fw.append(":\n");
+            for (int epoch = 0; epoch < outputVectors.size(); epoch++) {
+                fw.append("Epoch");
+                fw.append(String.valueOf(epoch));
+                fw.append(":\n");
+                for (val singleProcessData : outputVectors.get(epoch)) {
+                    fw.append("In: ");
+                    String input = Arrays.stream(singleProcessData.getFirst())
+                            .mapToObj(String::valueOf).
+                                    collect(joining(", "));
+                    fw.append(input);
+                    fw.append("\n");
+                    fw.append("Out: ");
+                    String output = Arrays.stream(singleProcessData.getSecond())
+                            .mapToObj(String::valueOf)
+                            .collect(joining(", "));
+                    fw.append(output);
                 }
-                fw.append("In: ");
-                String input = Arrays.stream(inputVectors.get(i)).mapToObj(String::valueOf).collect(joining(", "));
-                fw.append(input);
-                fw.append("\n");
-                fw.append("Out: ");
-                String output = Arrays.stream(outputVectors.get(i)).mapToObj(String::valueOf).collect(joining(", "));
-                fw.append(output);
-                inputCount++;
-                inputCount %= epochInputCount;
-                if (inputCount == 0) {
-                    epochIndex++;
-                    fw.append("\n---------------next-epoch-----------------------\n");
-                } else {
-                    fw.append("\n---------------next-batch---------------------\n");
-                }
-
-
-                epochIndex++;
+                fw.append("\n---------------next-epoch-----------------------\n");
             }
-
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    private void updateEpochLabel() {
-        epochLabel.setText("Current epoch: " + currentEpoch);
+    private void updateEpochLabel(int epoch) {
+        epochLabel.setText("Current epoch: " + epoch);
     }
 
     private Node addNodeAction(String prefix) {
         Node node = graph.addNode(prefix + itemNextId);
-        node.addAttribute(MyNode.LABEL_ATTRIBUTE_NAME, itemNextId);
+        node.addAttribute(MyNode.LABEL_ATTRIBUTE_NAME, String.valueOf(itemNextId));
         itemNextId++;
         return node;
     }

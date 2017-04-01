@@ -9,4 +9,8 @@ public class Utils {
             e.printStackTrace();
         }
     }
+
+    public static double sqr(double input) {
+        return input * input;
+    }
 }
