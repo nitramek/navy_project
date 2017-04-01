@@ -1,6 +1,7 @@
-package cz.nitramek.vsb.model;
+package cz.nitramek.vsb.model.nodes;
 
 
+import cz.nitramek.vsb.model.ValueListener;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 

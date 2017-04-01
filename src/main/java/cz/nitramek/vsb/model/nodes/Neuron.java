@@ -1,8 +1,9 @@
-package cz.nitramek.vsb.model;
+package cz.nitramek.vsb.model.nodes;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import cz.nitramek.vsb.model.ValueListener;
 import cz.nitramek.vsb.model.transfer.TransferFunction;
 import lombok.AccessLevel;
 import lombok.Data;

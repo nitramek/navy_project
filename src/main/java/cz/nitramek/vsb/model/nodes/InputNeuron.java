@@ -1,4 +1,4 @@
-package cz.nitramek.vsb.model;
+package cz.nitramek.vsb.model.nodes;
 
 
 import cz.nitramek.vsb.model.transfer.TransferFunction;

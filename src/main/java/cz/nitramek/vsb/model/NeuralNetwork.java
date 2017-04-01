@@ -3,6 +3,8 @@ package cz.nitramek.vsb.model;
 
 import java.util.List;
 
+import cz.nitramek.vsb.model.nodes.InputNeuron;
+import cz.nitramek.vsb.model.nodes.Neuron;
 import lombok.Data;
 
 import static java.util.Comparator.comparing;

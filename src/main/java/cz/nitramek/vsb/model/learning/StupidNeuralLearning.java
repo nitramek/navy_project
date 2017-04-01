@@ -1,65 +1,23 @@
-package cz.nitramek.vsb.model;
+package cz.nitramek.vsb.model.learning;
 
-
-import java.util.ArrayList;
 import java.util.List;
 
 import cz.nitramek.vsb.Tuple;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+import cz.nitramek.vsb.model.NeuralNetwork;
+import cz.nitramek.vsb.model.nodes.InputNeuron;
+import cz.nitramek.vsb.model.nodes.Neuron;
 import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 
 import static cz.nitramek.vsb.Utils.sqr;
 import static java.lang.String.format;
 
-@RequiredArgsConstructor
 @Slf4j
-public class NeuralLearning {
-
-    @Getter
-    private final List<Tuple<double[], double[]>> trainingSet;
-
-    @Getter
-    boolean isLearning;
-
-    @Getter
-    int epoch;
-
-    int trainingSetIndex;
-
-    float epochError;
-
-    /**
-     * You can learningStep learning process by yourself or you can just press learn
-     */
-    public void startLearning() {
-        this.isLearning = true;
-        this.epoch = 0;
-        this.epochError = 0;
+public class StupidNeuralLearning extends NeuralLearning {
+    public StupidNeuralLearning(List<Tuple<double[], double[]>> trainingSet) {
+        super(trainingSet);
     }
 
-    public void stopLearning() {
-        isLearning = false;
-    }
-
-    public List<List<Tuple<double[], double[]>>> learn(NeuralNetwork ann) {
-        startLearning();
-        val processData = new ArrayList<List<Tuple<double[], double[]>>>();
-        do {
-            val epochProcess = new ArrayList<Tuple<double[], double[]>>(trainingSet.size() * 3);
-            for (int i = 0; i < trainingSet.size(); i++) {
-                epochProcess.add(learningStep(ann));
-            }
-            processData.add(epochProcess);
-        } while (epochError > 0);
-        stopLearning();
-        return processData;
-    }
-
-    /**
-     * Performs one learningStep in learning process
-     */
+    @Override
     public Tuple<double[], double[]> learningStep(NeuralNetwork ann) {
         if (trainingSetIndex == 0) {
             epochError = 0;

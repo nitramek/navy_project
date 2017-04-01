@@ -33,11 +33,12 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 
 import cz.nitramek.vsb.MyNode;
 import cz.nitramek.vsb.Tuple;
-import cz.nitramek.vsb.model.Connection;
-import cz.nitramek.vsb.model.InputNeuron;
-import cz.nitramek.vsb.model.NeuralLearning;
 import cz.nitramek.vsb.model.NeuralNetwork;
-import cz.nitramek.vsb.model.Neuron;
+import cz.nitramek.vsb.model.learning.NeuralLearning;
+import cz.nitramek.vsb.model.learning.StupidNeuralLearning;
+import cz.nitramek.vsb.model.nodes.Connection;
+import cz.nitramek.vsb.model.nodes.InputNeuron;
+import cz.nitramek.vsb.model.nodes.Neuron;
 import cz.nitramek.vsb.model.transfer.TransferFunction;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -215,7 +216,7 @@ public class MainFrame extends JFrame {
             isLearning = true;
             switchLearningButton.setText("Stop learning");
             nn = prepareANN();
-            neuralLearning = new NeuralLearning(FileData.parseInputFile(selectedTrainingSetFile));
+            neuralLearning = new StupidNeuralLearning(FileData.parseInputFile(selectedTrainingSetFile));
             neuralLearning.startLearning();
             MainFrame.this.startComputation(ae);
             learningDialog.setVisible(false);

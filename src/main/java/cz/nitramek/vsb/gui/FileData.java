@@ -27,7 +27,7 @@ public class FileData {
                         for (String node : nodes) {
                             Matcher matcher = SINGLE_INPUT_PATTERN.matcher(node);
                             boolean matches = matcher.find();
-                            if (matches) {
+                            if (!matches) {
                                 throw new RuntimeException("Error in single node - " + node);
                             }
                             String id = matcher.group(1);
