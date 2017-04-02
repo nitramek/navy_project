@@ -21,8 +21,8 @@ public class EvolutionLearning extends NeuralLearning {
     private EvolutionAlgorithm evolutionAlgorithm;
 
     public EvolutionLearning(List<Tuple<double[], double[]>> trainingSet, NeuralNetwork ann, int maximumEpoch) {
-        super(trainingSet, ann, 0, maximumEpoch);
-        List<Boundary> weightBoundaries = Stream.generate(() -> new Boundary(-1, 1))
+        super(trainingSet, ann, 0.3, maximumEpoch);
+        List<Boundary> weightBoundaries = Stream.generate(() -> new Boundary(-2, 2))
                 .limit(ann.getWeightsCount())
                 .collect(Collectors.toList());
         evolutionAlgorithm = new SomaAllToOne(weightBoundaries, 20, maximumEpoch, this::calculateErrorForWeights,

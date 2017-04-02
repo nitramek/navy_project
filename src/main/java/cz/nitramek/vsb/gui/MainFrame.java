@@ -20,13 +20,19 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
 import java.nio.file.FileSystemNotFoundException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Vector;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.swing.*;
@@ -59,6 +65,7 @@ public class MainFrame extends JFrame {
     public static final String INTERNAL_NODE_PREFIX = "Internal_";
     public static final String EDGE_PREFIX = "Edge_";
     public static final String NEURON_ATTRIBUTE = "ui.neuron";
+    public static final Pattern SINGLE_NEURON_PATTERN = Pattern.compile("(\\d+)([a-z]+)");
     private final JLabel epochLabel;
     private final JButton switchLearningButton;
     private final JTextField inputField;
@@ -121,11 +128,7 @@ public class MainFrame extends JFrame {
 
         gbc.gridy++;
         JButton cleanButton = new JButton("Clean graph");
-        cleanButton.addActionListener(e -> {
-            graph.clear();
-            setGraphStyles();
-            itemNextId = 0;
-        });
+        cleanButton.addActionListener(e -> cleanGraph());
         controlPanel.add(cleanButton, gbc);
 
 
@@ -184,12 +187,82 @@ public class MainFrame extends JFrame {
         controlPanel.add(epochLabel, gbc);
 
         gbc.gridy++;
-        controlPanel.add(new JLabel("Input:"));
+        controlPanel.add(new JLabel("Input:"), gbc);
 
         gbc.gridy++;
         inputField = new JTextField();
+        inputField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                    startComputation(null);
+                }
+            }
+        });
         controlPanel.add(inputField, gbc);
 
+        gbc.gridy++;
+        JFileChooser networkFileChooser = new JFileChooser(Paths.get(".").toAbsolutePath().toFile());
+        networkFileChooser.setFileFilter(new FileNameExtensionFilter("Neural network", "ann"));
+        networkFileChooser.setMultiSelectionEnabled(false);
+        networkFileChooser.addActionListener(e -> {
+            File selectedFile = networkFileChooser.getSelectedFile();
+            if (selectedFile != null) {
+                Path path = Paths.get(selectedFile.toURI());
+                loadNetworkStructure(path);
+            }
+        });
+        gbc.gridy++;
+        JButton importNetwork = new JButton("Load network structure");
+        importNetwork.addActionListener(e -> {
+            networkFileChooser.showOpenDialog(MainFrame.this);
+        });
+        controlPanel.add(importNetwork, gbc);
+
+    }
+
+    private void cleanGraph() {
+        graph.clear();
+        setGraphStyles();
+        itemNextId = 0;
+    }
+
+    private void loadNetworkStructure(Path path) {
+        cleanGraph();
+        try {
+            List<String> lines = Files.readAllLines(path);
+            String firstLine = lines.get(0);
+            String[] neurons = firstLine.split(",");
+
+            Map<String, String> idTranslator = new HashMap<>();
+            Arrays.stream(neurons)
+                    .forEach(neuron -> {
+                        Matcher matcher = SINGLE_NEURON_PATTERN.matcher(neuron);
+                        matcher.find();
+                        String id = matcher.group(1);
+                        String type = matcher.group(2);
+                        switch (type) {
+                            case "in":
+                                idTranslator.put(id, addInputNode());
+                                break;
+                            case "i":
+                                idTranslator.put(id, addInternalNode());
+                                break;
+                            case "out":
+                                idTranslator.put(id, addOutputNode());
+                                break;
+                        }
+                    });
+            lines.remove(0);
+            lines.forEach(l -> {
+                String[] split = l.split("-");
+                GraphicNode from = graph.getNode(idTranslator.get(split[0]));
+                GraphicNode to = graph.getNode(idTranslator.get(split[1]));
+                createConnectionBetween(from, to);
+            });
+        } catch (IOException e1) {
+            throw new UncheckedIOException(e1);
+        }
     }
 
     private void openLearningDialog() {
@@ -224,6 +297,7 @@ public class MainFrame extends JFrame {
 
         JButton start = new JButton("Start Learning");
         start.addActionListener(ae -> {
+            maxEpochs = (Integer) model.getValue();
             isLearning = true;
             switchLearningButton.setText("Stop learning");
             nn = prepareANN();
@@ -331,7 +405,7 @@ public class MainFrame extends JFrame {
 
     private void createConnectionBetween(GraphicNode fromNode, GraphicElement toNode) {
         Edge edge = graph.addEdge(EDGE_PREFIX + itemNextId,
-                this.selectedNode.getId(), toNode.getId(), true);
+                fromNode.getId(), toNode.getId(), true);
         Neuron fromNeuron = fromNode.getAttribute(NEURON_ATTRIBUTE);
         Neuron toNeuron = toNode.getAttribute(NEURON_ATTRIBUTE);
         Connection connection = new Connection(fromNeuron, toNeuron);
@@ -342,7 +416,7 @@ public class MainFrame extends JFrame {
             edge.setAttribute(MyNode.LABEL_ATTRIBUTE_NAME, format("%.2f", connection.getWeight()));
         });
         itemNextId++;
-        System.out.println(format("Added edge from %s to %s", this.selectedNode.getId(), toNode.getId()));
+        System.out.println(format("Added edge from %s to %s", fromNode.getId(), toNode.getId()));
     }
 
     private void startComputation(ActionEvent actionEvent) {
@@ -372,7 +446,6 @@ public class MainFrame extends JFrame {
                         } else {
                             setNotLearning();
                         }
-
                     }
                 }
             }
@@ -446,7 +519,7 @@ public class MainFrame extends JFrame {
         return node;
     }
 
-    private void addInputNode() {
+    private String addInputNode() {
         Node node = addNodeAction(INPUT_NODE_PREFIX);
         InputNeuron neuron = new InputNeuron(node.getId(), 1, proxyTransferFunction);
 
@@ -458,9 +531,10 @@ public class MainFrame extends JFrame {
         });
         node.setAttribute(MyNode.CLASS_ATTRIBUTE_NAME, "input");
         node.setAttribute(NEURON_ATTRIBUTE, neuron);
+        return node.getId();
     }
 
-    private void addInternalNode() {
+    private String addInternalNode() {
         Node node = addNodeAction(INTERNAL_NODE_PREFIX);
         Neuron neuron = new Neuron(node.getId(), proxyTransferFunction);
         neuron.setListener(v -> {
@@ -469,9 +543,10 @@ public class MainFrame extends JFrame {
         });
         node.setAttribute(NEURON_ATTRIBUTE, neuron);
         node.setAttribute(MyNode.CLASS_ATTRIBUTE_NAME, "internal");
+        return node.getId();
     }
 
-    private void addOutputNode() {
+    private String addOutputNode() {
         Node node = addNodeAction(OUTPUT_NODE_PREFIX);
         Neuron neuron = new Neuron(node.getId(), proxyTransferFunction);
         neuron.setListener(v -> {
@@ -482,6 +557,7 @@ public class MainFrame extends JFrame {
         });
         node.setAttribute(NEURON_ATTRIBUTE, neuron);
         node.setAttribute(MyNode.CLASS_ATTRIBUTE_NAME, "output");
+        return node.getId();
     }
 
 
