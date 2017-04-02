@@ -497,12 +497,13 @@ public class MainFrame extends JFrame {
                             .mapToObj(String::valueOf).
                                     collect(joining(", "));
                     fw.append(input);
-                    fw.append("\n");
+                    fw.append("\t");
                     fw.append("Out: ");
                     String output = Arrays.stream(singleProcessData.getSecond())
                             .mapToObj(String::valueOf)
                             .collect(joining(", "));
                     fw.append(output);
+                    fw.append('\n');
                 }
                 fw.append("\n---------------next-epoch-----------------------\n");
             }
