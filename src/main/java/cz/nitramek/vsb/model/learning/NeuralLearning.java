@@ -18,64 +18,47 @@ public abstract class NeuralLearning {
     @Getter
     protected final List<Tuple<double[], double[]>> trainingSet;
 
-    @Getter
-    protected boolean isLearning;
+    protected final NeuralNetwork ann;
 
     @Getter
     protected int epoch;
 
-    protected int trainingSetIndex;
 
-    protected float epochError;
+    public List<List<Tuple<double[], double[]>>> autoLearn() {
+        val progressData = new ArrayList<List<Tuple<double[], double[]>>>();
+        epoch = 0;
+        double epochError;
+        do {
+            val epochProgressData = new ArrayList<Tuple<double[], double[]>>();
+            epochError = learnSingleEpoch(epochProgressData);
+            progressData.add(epochProgressData);
+        } while (epochError > 0);
+        return progressData;
+    }
 
     /**
-     * You can learningStep learning process by yourself or you can just press learn
+     * @param epochProgressData if you want to get information about epoch progress
+     * @return epoch error
      */
-    public void startLearning() {
-        this.isLearning = true;
-        this.epoch = 0;
-        this.epochError = 0;
-    }
-
-    public void stopLearning() {
-        isLearning = false;
-    }
-
-    public List<List<Tuple<double[], double[]>>> learn(NeuralNetwork ann) {
-        startLearning();
-        val processData = new ArrayList<List<Tuple<double[], double[]>>>();
-        do {
-            val epochProcess = new ArrayList<Tuple<double[], double[]>>(trainingSet.size() * 3);
-            for (int i = 0; i < trainingSet.size(); i++) {
-                epochProcess.add(learningStep(ann));
-            }
-            processData.add(epochProcess);
-        } while (epochError > 0);
-        stopLearning();
-        return processData;
-    }
-
-
-    public Tuple<double[], double[]> learningStep(NeuralNetwork ann) {
-        preStep();
-        Tuple<double[], double[]> result = actualStep(ann);
-        postStep();
-        return result;
-    }
-
-    protected void preStep() {
-        if (trainingSetIndex == 0) {
-            epochError = 0;
+    public double learnSingleEpoch(List<Tuple<double[], double[]>> epochProgressData) {
+        double epochError = 0;
+        for (val trainingItem : trainingSet) {
+            double[] input = trainingItem.getFirst();
+            double[] expectedOutputVec = trainingItem.getSecond();
+            double[] realOutputVec = ann.process(input);
+            double singleInputError = singleInputLearn(input, expectedOutputVec, realOutputVec);
+            epochError += singleInputError;
+            if (epochProgressData != null)
+                epochProgressData.add(Tuple.make(input, realOutputVec));
         }
+        epoch++;
+        return epochError;
     }
 
-    protected abstract Tuple<double[], double[]> actualStep(NeuralNetwork ann);
-
-    protected void postStep() {
-        trainingSetIndex++;
-        if (trainingSetIndex >= trainingSet.size()) {
-            trainingSetIndex = 0;
-            epoch++;
-        }
+    public double learnSingleEpoch() {
+        return learnSingleEpoch(null);
     }
+
+
+    protected abstract double singleInputLearn(double[] input, double[] expectedOutputVec, double[] realOutputVec);
 }

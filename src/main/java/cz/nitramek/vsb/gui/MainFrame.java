@@ -216,8 +216,7 @@ public class MainFrame extends JFrame {
             isLearning = true;
             switchLearningButton.setText("Stop learning");
             nn = prepareANN();
-            neuralLearning = new StupidNeuralLearning(FileData.parseInputFile(selectedTrainingSetFile));
-            neuralLearning.startLearning();
+            neuralLearning = new StupidNeuralLearning(FileData.parseInputFile(selectedTrainingSetFile), nn);
             MainFrame.this.startComputation(ae);
             learningDialog.setVisible(false);
         });
@@ -349,19 +348,29 @@ public class MainFrame extends JFrame {
                 //learning
                 if (autoLearn) {
                     log.info("Staring auto learning");
-                    val processData = neuralLearning.learn(nn);
+                    val processData = neuralLearning.autoLearn();
                     saveLearningProcess(processData);
                 } else {
                     log.info("Learning single step");
-                    isLearning = neuralLearning.isLearning();
                     if (isLearning) {
-                        neuralLearning.learningStep(nn);
-                        updateEpochLabel(neuralLearning.getEpoch());
+                        double error = neuralLearning.learnSingleEpoch();
+                        if (error > 0) {
+                            updateEpochLabel(neuralLearning.getEpoch());
+                        } else {
+                            setNotLearning();
+                        }
+
                     }
                 }
             }
         });
         workingThread.start();
+    }
+
+    private void setNotLearning() {
+        isLearning = false;
+        switchLearningButton.setText("Start Learning");
+        JOptionPane.showMessageDialog(this, format("Learning took %s epochs", neuralLearning.getEpoch()));
     }
 
     private int getInputNodeId(Node n) {
@@ -386,9 +395,7 @@ public class MainFrame extends JFrame {
 
     private void saveLearningProcess(List<List<Tuple<double[], double[]>>> outputVectors) {
 
-        isLearning = false;
-        switchLearningButton.setText("Start learning");
-        JOptionPane.showMessageDialog(this, format("Learning took %s epochs", neuralLearning.getEpoch()));
+        setNotLearning();
 
         try (FileWriter fw = new FileWriter("output.neuronLearn", false)) {
             for (int epoch = 0; epoch < outputVectors.size(); epoch++) {

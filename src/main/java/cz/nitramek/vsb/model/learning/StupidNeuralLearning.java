@@ -13,22 +13,20 @@ import static java.lang.String.format;
 
 @Slf4j
 public class StupidNeuralLearning extends NeuralLearning {
-    public StupidNeuralLearning(List<Tuple<double[], double[]>> trainingSet) {
-        super(trainingSet);
+
+    public StupidNeuralLearning(List<Tuple<double[], double[]>> trainingSet, NeuralNetwork ann) {
+        super(trainingSet, ann);
     }
 
     @Override
-    protected Tuple<double[], double[]> actualStep(NeuralNetwork ann) {
-        double[] input = trainingSet.get(trainingSetIndex).getFirst();
-        double[] expectedOutputVec = trainingSet.get(trainingSetIndex).getSecond();
-        double[] realOutputVec = ann.process(input);
-
+    protected double singleInputLearn(double[] input, double[] expectedOutputVec, double[] realOutputVec) {
+        double error = 0;
         for (int i = 0; i < realOutputVec.length; i++) {
             double realOutput = realOutputVec[i];
             double expectedOutput = expectedOutputVec[i];
             if (realOutput != expectedOutput) {
                 double delta = expectedOutput - realOutput;
-                epochError += sqr(delta);
+                error += sqr(delta);
                 log.info(format("Desired result is %s, actual is %s", expectedOutput, realOutput));
                 Neuron outputNeuron = ann.getOutputs().get(i);
                 outputNeuron.setHiddenWeight(outputNeuron.getHiddenWeight() + 0.33 * delta);
@@ -38,6 +36,6 @@ public class StupidNeuralLearning extends NeuralLearning {
                 });
             }
         }
-        return Tuple.make(input, realOutputVec);
+        return error;
     }
 }
