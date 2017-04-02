@@ -13,9 +13,9 @@ import static cz.nitramek.vsb.Utils.sqr;
 import static java.lang.String.format;
 
 @Slf4j
-public class StupidNeuralLearning extends NeuralLearning {
+public class DeltaNeuralLearning extends NeuralLearning {
 
-    public StupidNeuralLearning(List<Tuple<double[], double[]>> trainingSet, NeuralNetwork ann, int maximumEpoch) {
+    public DeltaNeuralLearning(List<Tuple<double[], double[]>> trainingSet, NeuralNetwork ann, int maximumEpoch) {
         super(trainingSet, ann, 0, maximumEpoch);
     }
 

@@ -41,9 +41,10 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 import cz.nitramek.vsb.MyNode;
 import cz.nitramek.vsb.Tuple;
 import cz.nitramek.vsb.model.NeuralNetwork;
+import cz.nitramek.vsb.model.learning.DeltaNeuralLearning;
 import cz.nitramek.vsb.model.learning.EvolutionLearning;
+import cz.nitramek.vsb.model.learning.FixedIncrementsLearning;
 import cz.nitramek.vsb.model.learning.NeuralLearning;
-import cz.nitramek.vsb.model.learning.StupidNeuralLearning;
 import cz.nitramek.vsb.model.nodes.Connection;
 import cz.nitramek.vsb.model.nodes.InputNeuron;
 import cz.nitramek.vsb.model.nodes.Neuron;
@@ -91,7 +92,7 @@ public class MainFrame extends JFrame {
 
         getContentPane().add(new JLabel("" +
                         "<html>" +
-                        "r - go to default view, c - select first node, c - select second one pres c to connect, " +
+                        "r - go to default view, C - select first node, C - select second one pres C to connect, " +
                         "d - select element to delete it, " +
                         "<br>" +
                         "Input format is [id, value];[id, value], next line means another input, " +
@@ -284,8 +285,10 @@ public class MainFrame extends JFrame {
         List<ComboItem<Supplier<NeuralLearning>>> comboItems = Arrays.asList(
                 new ComboItem<>(() -> new EvolutionLearning(FileData.parseInputFile(selectedTrainingSetFile),
                         prepareANN(), maxEpochs), "Evolution"),
-                new ComboItem<>(() -> new StupidNeuralLearning(FileData.parseInputFile(selectedTrainingSetFile),
-                        prepareANN(), maxEpochs), "Stupid")
+                new ComboItem<>(() -> new FixedIncrementsLearning(FileData.parseInputFile(selectedTrainingSetFile),
+                        prepareANN(), maxEpochs), "Fixed increments"),
+                new ComboItem<>(() -> new DeltaNeuralLearning(FileData.parseInputFile(selectedTrainingSetFile),
+                        prepareANN(), maxEpochs), "Delta increments")
         );
         JComboBox<ComboItem<Supplier<NeuralLearning>>> learningSelection = new JComboBox<>(new Vector<>(comboItems));
         learningDialog.add(new JLabel("Learning algorithm"));
@@ -335,7 +338,7 @@ public class MainFrame extends JFrame {
                 if (e.getKeyCode() == KeyEvent.VK_F5) {
                     startComputation(null);
                 }
-                if (e.getKeyChar() == 'c') { //make connection
+                if (e.getKeyChar() == 'C') { //make connection
                     if (selectedNode == null) {
                         graphMouseManager.getSelectedElement().ifPresent(ge -> {
                             if (ge instanceof GraphicNode) {

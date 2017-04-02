@@ -3,11 +3,9 @@ package cz.nitramek.vsb.model.learning;
 
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import cz.nitramek.vsb.Tuple;
-import cz.nitramek.vsb.Utils;
 import cz.nitramek.vsb.evolution.Boundary;
 import cz.nitramek.vsb.evolution.EvolutionAlgorithm;
 import cz.nitramek.vsb.evolution.SomaAllToOne;
@@ -33,7 +31,6 @@ public class EvolutionLearning extends NeuralLearning {
     @Override
     public double learnSingleEpoch(List<Tuple<double[], double[]>> epochProgressData) {
         double error = 0;
-
         evolutionAlgorithm.advance();
         for (val trainingItem : trainingSet) {
             double[] input = trainingItem.getFirst();
@@ -47,13 +44,6 @@ public class EvolutionLearning extends NeuralLearning {
         epoch++;
         log.info("Epoch error from evolution learning " + error);
         return error;
-    }
-
-    private double getErrorForInput(double[] expectedOutputVec, double[] realOutputVec) {
-        return IntStream.range(0, realOutputVec.length)
-                .mapToDouble(i -> expectedOutputVec[i] - realOutputVec[i])
-                .map(Utils::sqr)
-                .sum();
     }
 
     private double calculateErrorForWeights(double[] weights) {

@@ -3,8 +3,10 @@ package cz.nitramek.vsb.model.learning;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import cz.nitramek.vsb.Tuple;
+import cz.nitramek.vsb.Utils;
 import cz.nitramek.vsb.model.NeuralNetwork;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -48,4 +50,10 @@ public abstract class NeuralLearning {
     }
 
 
+    protected double getErrorForInput(double[] expectedOutputVec, double[] realOutputVec) {
+        return IntStream.range(0, realOutputVec.length)
+                .mapToDouble(i -> expectedOutputVec[i] - realOutputVec[i])
+                .map(Utils::sqr)
+                .sum();
+    }
 }
