@@ -23,4 +23,9 @@ public class InputNeuron extends Neuron {
         fireNeuronValuePass(input);
         return input;
     }
+
+    @Override
+    public double processNoListeners() {
+        return input;
+    }
 }

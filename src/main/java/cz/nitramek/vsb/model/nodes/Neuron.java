@@ -11,7 +11,7 @@ import lombok.EqualsAndHashCode;
 import lombok.Setter;
 
 @Data
-@EqualsAndHashCode(exclude = {"incoming", "transferFunction", "outgoing"})
+@EqualsAndHashCode(of = "id")
 public class Neuron {
 
     private final TransferFunction transferFunction;
@@ -52,4 +52,12 @@ public class Neuron {
         return output;
     }
 
+    public double processNoListeners() {
+        double output = this.incoming.stream()
+                .mapToDouble(Connection::getIncomingDataNoListener)
+                .sum();
+        output += hiddenWeight;
+        output = transferFunction.transfer(output, 1);
+        return output;
+    }
 }

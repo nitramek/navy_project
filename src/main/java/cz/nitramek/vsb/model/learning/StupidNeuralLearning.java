@@ -7,6 +7,7 @@ import cz.nitramek.vsb.model.NeuralNetwork;
 import cz.nitramek.vsb.model.nodes.InputNeuron;
 import cz.nitramek.vsb.model.nodes.Neuron;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import static cz.nitramek.vsb.Utils.sqr;
 import static java.lang.String.format;
@@ -14,11 +15,10 @@ import static java.lang.String.format;
 @Slf4j
 public class StupidNeuralLearning extends NeuralLearning {
 
-    public StupidNeuralLearning(List<Tuple<double[], double[]>> trainingSet, NeuralNetwork ann) {
-        super(trainingSet, ann);
+    public StupidNeuralLearning(List<Tuple<double[], double[]>> trainingSet, NeuralNetwork ann, int maximumEpoch) {
+        super(trainingSet, ann, 0, maximumEpoch);
     }
 
-    @Override
     protected double singleInputLearn(double[] input, double[] expectedOutputVec, double[] realOutputVec) {
         double error = 0;
         for (int i = 0; i < realOutputVec.length; i++) {
@@ -37,5 +37,21 @@ public class StupidNeuralLearning extends NeuralLearning {
             }
         }
         return error;
+    }
+
+    @Override
+    public double learnSingleEpoch(List<Tuple<double[], double[]>> epochProgressData) {
+        double epochError = 0;
+        for (val trainingItem : trainingSet) {
+            double[] input = trainingItem.getFirst();
+            double[] expectedOutputVec = trainingItem.getSecond();
+            double[] realOutputVec = ann.process(input);
+            double singleInputError = singleInputLearn(input, expectedOutputVec, realOutputVec);
+            epochError += singleInputError;
+            if (epochProgressData != null)
+                epochProgressData.add(Tuple.make(input, realOutputVec));
+        }
+        epoch++;
+        return epochError;
     }
 }

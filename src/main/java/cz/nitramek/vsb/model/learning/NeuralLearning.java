@@ -19,7 +19,8 @@ public abstract class NeuralLearning {
     protected final List<Tuple<double[], double[]>> trainingSet;
 
     protected final NeuralNetwork ann;
-
+    protected final double acceptedError;
+    protected final int maximumEpoch;
     @Getter
     protected int epoch;
 
@@ -32,7 +33,7 @@ public abstract class NeuralLearning {
             val epochProgressData = new ArrayList<Tuple<double[], double[]>>();
             epochError = learnSingleEpoch(epochProgressData);
             progressData.add(epochProgressData);
-        } while (epochError > 0);
+        } while (epochError > acceptedError && epoch < maximumEpoch);
         return progressData;
     }
 
@@ -40,25 +41,11 @@ public abstract class NeuralLearning {
      * @param epochProgressData if you want to get information about epoch progress
      * @return epoch error
      */
-    public double learnSingleEpoch(List<Tuple<double[], double[]>> epochProgressData) {
-        double epochError = 0;
-        for (val trainingItem : trainingSet) {
-            double[] input = trainingItem.getFirst();
-            double[] expectedOutputVec = trainingItem.getSecond();
-            double[] realOutputVec = ann.process(input);
-            double singleInputError = singleInputLearn(input, expectedOutputVec, realOutputVec);
-            epochError += singleInputError;
-            if (epochProgressData != null)
-                epochProgressData.add(Tuple.make(input, realOutputVec));
-        }
-        epoch++;
-        return epochError;
-    }
+    public abstract double learnSingleEpoch(List<Tuple<double[], double[]>> epochProgressData);
 
     public double learnSingleEpoch() {
         return learnSingleEpoch(null);
     }
 
 
-    protected abstract double singleInputLearn(double[] input, double[] expectedOutputVec, double[] realOutputVec);
 }

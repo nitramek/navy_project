@@ -25,6 +25,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Vector;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
@@ -34,6 +35,7 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 import cz.nitramek.vsb.MyNode;
 import cz.nitramek.vsb.Tuple;
 import cz.nitramek.vsb.model.NeuralNetwork;
+import cz.nitramek.vsb.model.learning.EvolutionLearning;
 import cz.nitramek.vsb.model.learning.NeuralLearning;
 import cz.nitramek.vsb.model.learning.StupidNeuralLearning;
 import cz.nitramek.vsb.model.nodes.Connection;
@@ -97,19 +99,18 @@ public class MainFrame extends JFrame {
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.gridy = 0;
-        ComboItem[] comboItems = {
-                new ComboItem(TransferFunction.BINARY, "Binary"),
-                new ComboItem(TransferFunction.PERCEPTRON, "Perceptron"),
-                new ComboItem(TransferFunction.HYPERBOLIC, "Hyperbolic"),
-                new ComboItem(TransferFunction.LOGISTIC, "Logistic"),
-        };
-        JComboBox<ComboItem> transferFunctionJComboBox = new JComboBox<>(comboItems);
+        List<ComboItem<TransferFunction>> comboItems = Arrays.asList(
+                new ComboItem<>(TransferFunction.BINARY, "Binary"),
+                new ComboItem<>(TransferFunction.PERCEPTRON, "Perceptron"),
+                new ComboItem<>(TransferFunction.HYPERBOLIC, "Hyperbolic"),
+                new ComboItem<>(TransferFunction.LOGISTIC, "Logistic"));
+        JComboBox<ComboItem<TransferFunction>> transferFunctionJComboBox = new JComboBox<>(new Vector<>(comboItems));
 
         transferFunctionJComboBox.addActionListener(e -> {
             selectedTransferFunction = transferFunctionJComboBox.getModel()
                     .getElementAt(transferFunctionJComboBox.getSelectedIndex()).item;
         });
-        selectedTransferFunction = comboItems[0].item;
+        selectedTransferFunction = comboItems.get(0).item;
         controlPanel.add(transferFunctionJComboBox, gbc);
 
 
@@ -193,7 +194,7 @@ public class MainFrame extends JFrame {
 
     private void openLearningDialog() {
         JDialog learningDialog = new JDialog(this, "Learning", true);
-        learningDialog.getContentPane().setLayout(new GridLayout(3, 2));
+        learningDialog.getContentPane().setLayout(new GridLayout(4, 2));
         learningDialog.add(new JLabel("Max epochs"));
         SpinnerModel model = new SpinnerNumberModel(10, 0, 1000, 1);
         model.addChangeListener(l -> maxEpochs = (Integer) model.getValue());
@@ -206,6 +207,16 @@ public class MainFrame extends JFrame {
         autoLearnCheckbox.addChangeListener(l -> autoLearn = autoLearnCheckbox.isSelected());
         learningDialog.add(autoLearnCheckbox);
 
+
+        List<ComboItem<Supplier<NeuralLearning>>> comboItems = Arrays.asList(
+                new ComboItem<>(() -> new EvolutionLearning(FileData.parseInputFile(selectedTrainingSetFile),
+                        prepareANN(), maxEpochs), "Evolution"),
+                new ComboItem<>(() -> new StupidNeuralLearning(FileData.parseInputFile(selectedTrainingSetFile),
+                        prepareANN(), maxEpochs), "Stupid")
+        );
+        JComboBox<ComboItem<Supplier<NeuralLearning>>> learningSelection = new JComboBox<>(new Vector<>(comboItems));
+        learningDialog.add(new JLabel("Learning algorithm"));
+        learningDialog.add(learningSelection);
         JButton cancel = new JButton("Cancel");
         cancel.addActionListener(ee -> learningDialog.setVisible(false));
         learningDialog.add(cancel);
@@ -216,7 +227,9 @@ public class MainFrame extends JFrame {
             isLearning = true;
             switchLearningButton.setText("Stop learning");
             nn = prepareANN();
-            neuralLearning = new StupidNeuralLearning(FileData.parseInputFile(selectedTrainingSetFile), nn);
+            Supplier<NeuralLearning> learningSupplier = learningSelection.getModel()
+                    .getElementAt(learningSelection.getSelectedIndex()).item;
+            neuralLearning = learningSupplier.get();
             MainFrame.this.startComputation(ae);
             learningDialog.setVisible(false);
         });
@@ -472,16 +485,16 @@ public class MainFrame extends JFrame {
     }
 
 
-    static class ComboItem {
-        TransferFunction item;
+    static class ComboItem<T> {
+        T item;
         Supplier<String> stringSupplier;
 
-        public ComboItem(TransferFunction item, Supplier<String> stringSupplier) {
+        public ComboItem(T item, Supplier<String> stringSupplier) {
             this.item = item;
             this.stringSupplier = stringSupplier;
         }
 
-        public ComboItem(TransferFunction item, String label) {
+        public ComboItem(T item, String label) {
             this(item, () -> label);
         }
 

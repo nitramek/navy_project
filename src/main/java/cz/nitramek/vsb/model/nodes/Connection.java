@@ -31,4 +31,8 @@ public class Connection {
             listener.valueChange(weight);
         }
     }
+
+    public double getIncomingDataNoListener() {
+        return weight * from.processNoListeners();
+    }
 }
