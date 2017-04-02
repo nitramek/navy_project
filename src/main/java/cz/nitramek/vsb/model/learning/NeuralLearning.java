@@ -55,8 +55,27 @@ public abstract class NeuralLearning {
         return processData;
     }
 
-    /**
-     * Performs one learningStep in learning process
-     */
-    public abstract Tuple<double[], double[]> learningStep(NeuralNetwork ann);
+
+    public Tuple<double[], double[]> learningStep(NeuralNetwork ann) {
+        preStep();
+        Tuple<double[], double[]> result = actualStep(ann);
+        postStep();
+        return result;
+    }
+
+    protected void preStep() {
+        if (trainingSetIndex == 0) {
+            epochError = 0;
+        }
+    }
+
+    protected abstract Tuple<double[], double[]> actualStep(NeuralNetwork ann);
+
+    protected void postStep() {
+        trainingSetIndex++;
+        if (trainingSetIndex >= trainingSet.size()) {
+            trainingSetIndex = 0;
+            epoch++;
+        }
+    }
 }

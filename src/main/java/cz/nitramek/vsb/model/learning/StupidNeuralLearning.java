@@ -18,10 +18,7 @@ public class StupidNeuralLearning extends NeuralLearning {
     }
 
     @Override
-    public Tuple<double[], double[]> learningStep(NeuralNetwork ann) {
-        if (trainingSetIndex == 0) {
-            epochError = 0;
-        }
+    protected Tuple<double[], double[]> actualStep(NeuralNetwork ann) {
         double[] input = trainingSet.get(trainingSetIndex).getFirst();
         double[] expectedOutputVec = trainingSet.get(trainingSetIndex).getSecond();
         double[] realOutputVec = ann.process(input);
@@ -40,12 +37,6 @@ public class StupidNeuralLearning extends NeuralLearning {
                     c.setWeight(c.getWeight() + 0.33 * nInput * delta);
                 });
             }
-        }
-
-        trainingSetIndex++;
-        if (trainingSetIndex >= trainingSet.size()) {
-            trainingSetIndex = 0;
-            epoch++;
         }
         return Tuple.make(input, realOutputVec);
     }
