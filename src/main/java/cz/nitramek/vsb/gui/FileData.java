@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
 import cz.nitramek.vsb.Tuple;
 
 public class FileData {
-    public static final Pattern SINGLE_INPUT_PATTERN = Pattern.compile("\\s*\\[([0-9]+(o?)),([-0-9]+)]\\s*");
+    public static final Pattern SINGLE_INPUT_PATTERN = Pattern.compile("\\s*\\[([0-9]+(o?)),([-0.0-9.0]+)]\\s*");
     public static final Pattern INPUT_SEPARATOR_PATTERN = Pattern.compile(";");
 
     static List<Tuple<double[], double[]>> parseInputFile(File selectedFile) {
