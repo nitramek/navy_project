@@ -4,6 +4,8 @@ import java.util.Random;
 
 import lombok.Data;
 
+import static java.lang.Math.abs;
+
 @Data
 public class Boundary {
     public final double min;
@@ -14,7 +16,7 @@ public class Boundary {
     public Boundary(double min, double max) {
         this.min = min;
         this.max = max;
-        this.range = max - min;
+        this.range = abs(max - min);
     }
 
     /**

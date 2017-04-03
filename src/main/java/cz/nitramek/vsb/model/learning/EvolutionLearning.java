@@ -20,11 +20,11 @@ public class EvolutionLearning extends NeuralLearning {
 
     public EvolutionLearning(List<Tuple<double[], double[]>> trainingSet, NeuralNetwork ann, int maximumEpoch) {
         super(trainingSet, ann, 0.3, maximumEpoch);
-        List<Boundary> weightBoundaries = Stream.generate(() -> new Boundary(-2, 2))
+        List<Boundary> weightBoundaries = Stream.generate(() -> new Boundary(-0.5, 0.5))
                 .limit(ann.getWeightsCount())
                 .collect(Collectors.toList());
-        evolutionAlgorithm = new SomaAllToOne(weightBoundaries, 20, maximumEpoch, this::calculateErrorForWeights,
-                false);
+        evolutionAlgorithm = new SomaAllToOne(weightBoundaries, 40, maximumEpoch,
+                this::calculateErrorForWeights, false);
     }
 
 
@@ -32,6 +32,7 @@ public class EvolutionLearning extends NeuralLearning {
     public double learnSingleEpoch(List<Tuple<double[], double[]>> epochProgressData) {
         double error = 0;
         evolutionAlgorithm.advance();
+        ann.setWeights(evolutionAlgorithm.getBest().getParameters());
         for (val trainingItem : trainingSet) {
             double[] input = trainingItem.getFirst();
             double[] expectedOutputVec = trainingItem.getSecond();
