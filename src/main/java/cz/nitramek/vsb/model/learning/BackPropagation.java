@@ -54,14 +54,6 @@ public class BackPropagation extends NeuralLearning {
             double[] realOutput = ann.processNoListeners(input);
             double[] exceptedOutput = trainingSet.get(i).getSecond();
             List<Neuron> outputs = ann.getOutputs();
-//            double d = exceptedOutput[0];
-//            double y0 = realOutput[0];
-//            double delta = y0 * (1 - y0) * (y0 - d);
-//            double hiddenWeight = outputs.get(0).getHiddenWeight();
-//            outputs.get(0).setHiddenWeight(hiddenWeight - delta * learningCoeff);
-//            for (Connection c : outputs.get(0).getIncoming()) {
-//                c.setWeight(c.getWeight() - learningCoeff * delta * c.getFrom().processNoListeners());
-//            }
             layers.get(0).forEach(lc -> {
                 int outIndex = outputs.indexOf(lc.c.getTo());
                 double y0 = lc.c.getTo().getLastValue();
@@ -74,6 +66,25 @@ public class BackPropagation extends NeuralLearning {
                 double hiddenDelta = learningCoeff * lc.deltaTo;
                 lc.c.getTo().setHiddenWeight(lc.c.getTo().getHiddenWeight() - hiddenDelta);
             });
+            for (int j = 1; j < layers.size(); j++) {
+                List<LearningConnections> layer = layers.get(j);
+                List<LearningConnections> layerBefore = layers.get(j - 1);
+                layer.forEach(lc -> {
+                    Neuron toNeuron = lc.c.getTo();
+                    double y0 = toNeuron.getLastValue();
+                    double y1 = lc.c.getFrom().getLastValue();
+                    double weightSum = layerBefore.stream()
+                            .filter(lb -> lb.c.getFrom().equals(toNeuron))//want only
+                            // connected to me
+                            .mapToDouble(lb -> lb.deltaTo * lb.c.getWeight())
+                            .sum();
+                    lc.deltaTo = y0 * (1 - y0) * weightSum;
+                    double weightDelta = learningCoeff * lc.deltaTo * y1;
+                    lc.newWeight = lc.c.getWeight() - weightDelta;
+                    double hiddenDelta = learningCoeff * lc.deltaTo;
+                    toNeuron.setHiddenWeight(toNeuron.getHiddenWeight() - hiddenDelta);
+                });
+            }
             layers.forEach(lcl -> lcl.forEach(lc -> lc.c.setWeight(lc.newWeight)));
             epochProgress.add(Tuple.make(input, realOutput));
             globalError += getErrorForInput(exceptedOutput, realOutput);

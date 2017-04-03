@@ -275,7 +275,7 @@ public class MainFrame extends JFrame {
         JDialog learningDialog = new JDialog(this, "Learning", true);
         learningDialog.getContentPane().setLayout(new GridLayout(6, 2));
         learningDialog.add(new JLabel("Max epochs"));
-        SpinnerModel model = new SpinnerNumberModel(maxEpochs, 0, 1000, 1);
+        SpinnerModel model = new SpinnerNumberModel(maxEpochs, 0, 10000000, 1);
         model.addChangeListener(l -> maxEpochs = (Integer) model.getValue());
         JSpinner spinner = new JSpinner(model);
         learningDialog.add(spinner);
@@ -360,7 +360,7 @@ public class MainFrame extends JFrame {
                 if (e.getKeyCode() == KeyEvent.VK_F5) {
                     startComputation(null);
                 }
-                if (e.getKeyChar() == 'C') { //make connection
+                if (e.getKeyChar() == 'c') { //make connection
                     if (selectedNode == null) {
                         graphMouseManager.getSelectedElement().ifPresent(ge -> {
                             if (ge instanceof GraphicNode) {
