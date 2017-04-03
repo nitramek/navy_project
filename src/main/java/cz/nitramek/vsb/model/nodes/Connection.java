@@ -6,7 +6,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 @Data
-@EqualsAndHashCode(exclude = "listener")
+@EqualsAndHashCode(of = {"from", "to"})
 public class Connection {
 
     private final Neuron from;
@@ -18,7 +18,7 @@ public class Connection {
     public Connection(Neuron from, Neuron to) {
         this.from = from;
         this.to = to;
-        this.weight = Math.random();
+        this.weight = Math.random() - 0.5;
     }
 
     public double getIncomingData() {
@@ -30,6 +30,10 @@ public class Connection {
         if (listener != null) {
             listener.valueChange(weight);
         }
+    }
+
+    public void setWeight(double weight) {
+        this.weight = weight;
     }
 
     public double getIncomingDataNoListener() {

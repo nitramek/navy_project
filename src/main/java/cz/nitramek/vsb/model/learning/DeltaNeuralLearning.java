@@ -15,8 +15,9 @@ import static java.lang.String.format;
 @Slf4j
 public class DeltaNeuralLearning extends NeuralLearning {
 
-    public DeltaNeuralLearning(List<Tuple<double[], double[]>> trainingSet, NeuralNetwork ann, int maximumEpoch) {
-        super(trainingSet, ann, 0, maximumEpoch);
+    public DeltaNeuralLearning(List<Tuple<double[], double[]>> trainingSet, NeuralNetwork ann,
+                               int maximumEpoch, double learningCoeef) {
+        super(trainingSet, ann, 0, maximumEpoch, learningCoeef);
     }
 
     protected double singleInputLearn(double[] input, double[] expectedOutputVec, double[] realOutputVec) {
@@ -32,7 +33,7 @@ public class DeltaNeuralLearning extends NeuralLearning {
                 outputNeuron.setHiddenWeight(outputNeuron.getHiddenWeight() + 0.33 * delta);
                 outputNeuron.getIncoming().forEach(c -> {
                     double nInput = ((InputNeuron) c.getFrom()).getInput();
-                    c.setWeight(c.getWeight() + 0.33 * nInput * delta);
+                    c.setWeight(c.getWeight() + learningCoeff * nInput * delta);
                 });
             }
         }

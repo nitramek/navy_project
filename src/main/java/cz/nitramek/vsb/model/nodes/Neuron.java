@@ -8,6 +8,7 @@ import cz.nitramek.vsb.model.transfer.TransferFunction;
 import lombok.AccessLevel;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.Setter;
 
 @Data
@@ -24,6 +25,8 @@ public class Neuron {
     private ValueListener listener;
 
     private double hiddenWeight;
+    @Getter
+    private double lastValue;
 
     /**
      * Constructs neuron with empty array of incoming connections
@@ -33,7 +36,7 @@ public class Neuron {
         this.transferFunction = transferFunction;
         this.incoming = new ArrayList<>();
         this.outgoing = new ArrayList<>();
-        this.hiddenWeight = Math.random() * 2 - 1;
+        this.hiddenWeight = 1;
     }
 
     protected void fireNeuronValuePass(double value) {
@@ -49,6 +52,7 @@ public class Neuron {
         output += hiddenWeight;
         output = transferFunction.transfer(output, 1);
         fireNeuronValuePass(output);
+        lastValue = output;
         return output;
     }
 
@@ -58,6 +62,7 @@ public class Neuron {
                 .sum();
         output += hiddenWeight;
         output = transferFunction.transfer(output, 1);
+        lastValue = output;
         return output;
     }
 }

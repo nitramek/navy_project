@@ -41,6 +41,7 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 import cz.nitramek.vsb.MyNode;
 import cz.nitramek.vsb.Tuple;
 import cz.nitramek.vsb.model.NeuralNetwork;
+import cz.nitramek.vsb.model.learning.BackPropagation;
 import cz.nitramek.vsb.model.learning.DeltaNeuralLearning;
 import cz.nitramek.vsb.model.learning.EvolutionLearning;
 import cz.nitramek.vsb.model.learning.FixedIncrementsLearning;
@@ -82,9 +83,13 @@ public class MainFrame extends JFrame {
     private int maxEpochs = 10;
     private boolean autoLearn = true;
     private NeuralLearning neuralLearning;
+    private double learningCoeff;
+    private double acceptedError;
 
     public MainFrame() {
         super("Navy!");
+        learningCoeff = 0.3;
+        maxEpochs = 50;
         getContentPane().setLayout(new BorderLayout());
 
         ViewPanel view = setupGraph();
@@ -111,7 +116,7 @@ public class MainFrame extends JFrame {
                 new ComboItem<>(TransferFunction.BINARY, "Binary"),
                 new ComboItem<>(TransferFunction.PERCEPTRON, "Perceptron"),
                 new ComboItem<>(TransferFunction.HYPERBOLIC, "Hyperbolic"),
-                new ComboItem<>(TransferFunction.LOGISTIC, "Logistic"));
+                new ComboItem<>(TransferFunction.LOGISTIC, "Sigmoid"));
         JComboBox<ComboItem<TransferFunction>> transferFunctionJComboBox = new JComboBox<>(new Vector<>(comboItems));
 
         transferFunctionJComboBox.addActionListener(e -> {
@@ -268,9 +273,9 @@ public class MainFrame extends JFrame {
 
     private void openLearningDialog() {
         JDialog learningDialog = new JDialog(this, "Learning", true);
-        learningDialog.getContentPane().setLayout(new GridLayout(4, 2));
+        learningDialog.getContentPane().setLayout(new GridLayout(6, 2));
         learningDialog.add(new JLabel("Max epochs"));
-        SpinnerModel model = new SpinnerNumberModel(10, 0, 1000, 1);
+        SpinnerModel model = new SpinnerNumberModel(maxEpochs, 0, 1000, 1);
         model.addChangeListener(l -> maxEpochs = (Integer) model.getValue());
         JSpinner spinner = new JSpinner(model);
         learningDialog.add(spinner);
@@ -281,14 +286,29 @@ public class MainFrame extends JFrame {
         autoLearnCheckbox.addChangeListener(l -> autoLearn = autoLearnCheckbox.isSelected());
         learningDialog.add(autoLearnCheckbox);
 
+        learningDialog.add(new JLabel("Learning coeff"));
+        SpinnerModel learningCoeffModel = new SpinnerNumberModel(learningCoeff, 0, 1, 0.1);
+        model.addChangeListener(l -> learningCoeff = (Double) learningCoeffModel.getValue());
+        JSpinner learingCoeeffSpinner = new JSpinner(learningCoeffModel);
+        learningDialog.add(learingCoeeffSpinner);
+
+
+        learningDialog.add(new JLabel("Accepted error"));
+        SpinnerModel acceptedSpinnerModel = new SpinnerNumberModel(acceptedError, 0, 1, 0.2);
+        model.addChangeListener(l -> acceptedError = (Double) acceptedSpinnerModel.getValue());
+        JSpinner acceptedErrorSpinner = new JSpinner(acceptedSpinnerModel);
+        learningDialog.add(acceptedErrorSpinner);
+
 
         List<ComboItem<Supplier<NeuralLearning>>> comboItems = Arrays.asList(
                 new ComboItem<>(() -> new EvolutionLearning(FileData.parseInputFile(selectedTrainingSetFile),
-                        prepareANN(), maxEpochs), "Evolution"),
+                        prepareANN(), acceptedError, maxEpochs), "Evolution"),
                 new ComboItem<>(() -> new FixedIncrementsLearning(FileData.parseInputFile(selectedTrainingSetFile),
-                        prepareANN(), maxEpochs), "Fixed increments"),
+                        prepareANN(), maxEpochs, 1), "Fixed increments"),
                 new ComboItem<>(() -> new DeltaNeuralLearning(FileData.parseInputFile(selectedTrainingSetFile),
-                        prepareANN(), maxEpochs), "Delta increments")
+                        prepareANN(), maxEpochs, learningCoeff), "Delta increments"),
+                new ComboItem<>(() -> new BackPropagation(FileData.parseInputFile(selectedTrainingSetFile),
+                        prepareANN(), acceptedError, maxEpochs, learningCoeff), "BackPropagation - logistics")
         );
         JComboBox<ComboItem<Supplier<NeuralLearning>>> learningSelection = new JComboBox<>(new Vector<>(comboItems));
         learningDialog.add(new JLabel("Learning algorithm"));
@@ -301,6 +321,8 @@ public class MainFrame extends JFrame {
         JButton start = new JButton("Start Learning");
         start.addActionListener(ae -> {
             maxEpochs = (Integer) model.getValue();
+            learningCoeff = (Double) learningCoeffModel.getValue();
+            acceptedError = (Double) acceptedSpinnerModel.getValue();
             isLearning = true;
             switchLearningButton.setText("Stop learning");
             nn = prepareANN();
@@ -323,7 +345,7 @@ public class MainFrame extends JFrame {
         Viewer viewer = new Viewer(graph, Viewer.ThreadingModel.GRAPH_IN_GUI_THREAD);
 
         Layout layout = Layouts.newLayoutAlgorithm();
-        layout.setForce(layout.getForce() / 10);
+        layout.setForce(layout.getForce() / 30);
         viewer.enableAutoLayout(layout);
         ViewPanel view = viewer.addDefaultView(false);
         view.addKeyListener(new KeyAdapter() {

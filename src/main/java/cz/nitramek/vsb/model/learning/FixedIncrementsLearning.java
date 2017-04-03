@@ -13,8 +13,9 @@ public class FixedIncrementsLearning extends NeuralLearning {
 
     public static final double C = 1;
 
-    public FixedIncrementsLearning(List<Tuple<double[], double[]>> trainingSet, NeuralNetwork ann, int maximumEpoch) {
-        super(trainingSet, ann, 0, maximumEpoch);
+    public FixedIncrementsLearning(List<Tuple<double[], double[]>> trainingSet, NeuralNetwork ann,
+                                   int maximumEpoch, double learningCoeef) {
+        super(trainingSet, ann, 0, maximumEpoch, learningCoeef);
         ann.setWeights(new double[]{1, 0, 0});
     }
 
@@ -35,7 +36,7 @@ public class FixedIncrementsLearning extends NeuralLearning {
         double[] weights = ann.getWeights();
         if (dot(extendedInput, weights) <= 0) {
             ann.setWeights(IntStream.range(0, extendedInput.length)
-                    .mapToDouble(j -> weights[j] + C * extendedInput[j]).toArray());
+                    .mapToDouble(j -> weights[j] + learningCoeff * extendedInput[j]).toArray());
             error = 1;
         }
 

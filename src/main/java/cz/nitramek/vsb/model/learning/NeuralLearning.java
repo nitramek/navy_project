@@ -9,11 +9,9 @@ import cz.nitramek.vsb.Tuple;
 import cz.nitramek.vsb.Utils;
 import cz.nitramek.vsb.model.NeuralNetwork;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
-@RequiredArgsConstructor
 @Slf4j
 public abstract class NeuralLearning {
 
@@ -23,8 +21,18 @@ public abstract class NeuralLearning {
     protected final NeuralNetwork ann;
     protected final double acceptedError;
     protected final int maximumEpoch;
+    protected final double learningCoeff;
     @Getter
     protected int epoch;
+
+    protected NeuralLearning(List<Tuple<double[], double[]>> trainingSet, NeuralNetwork ann, double acceptedError,
+                             int maximumEpoch, double learningCoeff) {
+        this.trainingSet = trainingSet;
+        this.ann = ann;
+        this.acceptedError = acceptedError;
+        this.maximumEpoch = maximumEpoch;
+        this.learningCoeff = learningCoeff;
+    }
 
 
     public List<List<Tuple<double[], double[]>>> autoLearn() {

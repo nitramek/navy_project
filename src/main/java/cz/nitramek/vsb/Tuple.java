@@ -1,9 +1,11 @@
 package cz.nitramek.vsb;
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
 
-@Data(staticConstructor = "make")
+@Data
+@AllArgsConstructor(staticName = "make")
 public class Tuple<FirstType, SecondType> {
-    private final FirstType first;
-    private final SecondType second;
+    private FirstType first;
+    private SecondType second;
 }
