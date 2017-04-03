@@ -10,6 +10,15 @@ import org.graphstream.ui.layout.Layout;
 import org.graphstream.ui.layout.Layouts;
 import org.graphstream.ui.swingViewer.ViewPanel;
 import org.graphstream.ui.view.Viewer;
+import org.jfree.chart.ChartFactory;
+import org.jfree.chart.ChartPanel;
+import org.jfree.chart.JFreeChart;
+import org.jfree.chart.axis.NumberAxis;
+import org.jfree.chart.axis.NumberTickUnit;
+import org.jfree.chart.plot.PlotOrientation;
+import org.jfree.chart.plot.XYPlot;
+import org.jfree.data.xy.XYSeries;
+import org.jfree.data.xy.XYSeriesCollection;
 
 import java.awt.*;
 import java.awt.event.ActionEvent;
@@ -34,12 +43,14 @@ import java.util.Vector;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.IntStream;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
 import cz.nitramek.vsb.MyNode;
 import cz.nitramek.vsb.Tuple;
+import cz.nitramek.vsb.Utils;
 import cz.nitramek.vsb.model.NeuralNetwork;
 import cz.nitramek.vsb.model.learning.BackPropagation;
 import cz.nitramek.vsb.model.learning.DeltaNeuralLearning;
@@ -505,9 +516,9 @@ public class MainFrame extends JFrame {
     }
 
     private void saveLearningProcess(List<List<Tuple<double[], double[]>>> outputVectors) {
-
+        List<Tuple<double[], double[]>> trainingSet = FileData.parseInputFile(selectedTrainingSetFile);
         setNotLearning();
-
+        openErrorDialog(outputVectors, trainingSet);
         try (FileWriter fw = new FileWriter("output.neuronLearn", false)) {
             for (int epoch = 0; epoch < outputVectors.size(); epoch++) {
                 fw.append("Epoch");
@@ -532,6 +543,49 @@ public class MainFrame extends JFrame {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    private void openErrorDialog(List<List<Tuple<double[], double[]>>> outputVectors, List<Tuple<double[], double[]>>
+            trainingSet) {
+        XYSeries errorSeries = new XYSeries("Errors/epochs", false, true);
+        for (int i = 0; i < outputVectors.size(); i++) {
+            List<Tuple<double[], double[]>> epoch = outputVectors.get(i);
+            double epochError = 0;
+            for (int j = 0; j < epoch.size(); j++) {
+                double[] expectedError = trainingSet.get(j).getSecond();
+                double[] output = epoch.get(j).getSecond();
+                epochError += IntStream.range(0, expectedError.length)
+                        .mapToDouble(k -> expectedError[k] - output[k])
+                        .map(Utils::sqr)
+                        .sum();
+
+            }
+            errorSeries.add(i, epochError);
+        }
+        XYSeriesCollection dataset = new XYSeriesCollection(errorSeries);
+
+        JFreeChart chart = ChartFactory.createXYLineChart("Errors/epochs",
+                "epoch", "global error", dataset, PlotOrientation.VERTICAL, false, false, false);
+        XYPlot xyPlot = chart.getXYPlot();
+        NumberAxis domainAxis = (NumberAxis) xyPlot.getDomainAxis();
+
+        double divider = 10;
+        double onScreen = outputVectors.size() / divider;
+        while (onScreen <= 10) {
+            divider *= 10;
+            onScreen = outputVectors.size() / divider;
+        }
+        domainAxis.setTickUnit(new NumberTickUnit(onScreen));
+        domainAxis.setRange(0, outputVectors.size());
+        domainAxis.setVerticalTickLabels(true);
+        domainAxis.setTickLabelsVisible(true);
+
+
+        ChartPanel chartPanel = new ChartPanel(chart);
+        JDialog chartDialog = new JDialog(MainFrame.this, "Error watch", true);
+        chartDialog.setSize(800, 640);
+        chartDialog.add(chartPanel);
+        chartDialog.setVisible(true);
     }
 
     private void updateEpochLabel(int epoch) {
