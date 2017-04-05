@@ -99,6 +99,28 @@ public class MainFrame extends JFrame {
     private double learningCoeff;
     private double acceptedError;
 
+    private GraphCreatorCalls graphCreatorCalls = new GraphCreatorCalls() {
+        @Override
+        public int createInput() {
+            return Integer.parseInt(addInputNode().replace(INPUT_NODE_PREFIX, ""));
+        }
+
+        @Override
+        public int createOutput() {
+            return Integer.parseInt(addOutputNode().replace(OUTPUT_NODE_PREFIX, ""));
+        }
+
+        @Override
+        public void createConnectionBetweenOutputs(int from, int to, boolean directional) {
+            MainFrame.this.createConnectionBetween(OUTPUT_NODE_PREFIX + from, OUTPUT_NODE_PREFIX + to, directional);
+        }
+
+        @Override
+        public void clear() {
+            cleanGraph();
+        }
+    };
+
 
     public MainFrame() {
         super("Navy!");
@@ -240,10 +262,12 @@ public class MainFrame extends JFrame {
         });
         controlPanel.add(importNetwork, gbc);
         gbc.gridy++;
-        hopfieldFrame = new HopFieldFrame(this, this::startComputation);
+        hopfieldFrame = new HopFieldFrame(this, this::startComputation, graphCreatorCalls);
         JButton hopfieldVisualizationBtn = new JButton("Hopfield visualization");
         hopfieldVisualizationBtn.addActionListener(e -> {
             hopfieldFrame.setVisible(true);
+            hopfieldFrame.createANN();
+            selectedTransferFunction = TransferFunction.SIGNUM;
         });
         controlPanel.add(hopfieldVisualizationBtn, gbc);
 
@@ -512,14 +536,16 @@ public class MainFrame extends JFrame {
     private void startComputation(ActionEvent actionEvent) {
         Thread workingThread = new Thread(() -> {
             System.out.println("Neuron network process");
-            if (nn == null) {
-                nn = prepareANN();
-            }
+
             if (isHopfield()) {
+                nn = prepareANN();
                 double[] input = hopfieldFrame.getData();
                 double[] output = nn.process(input);
                 hopfieldFrame.visualize(output);
             } else {
+                if (nn == null) {
+                    nn = prepareANN();
+                }
                 if (!isLearning) {
                     double[] input = Pattern.compile(";").splitAsStream(inputField.getText())
                             .mapToDouble(Double::parseDouble)

@@ -9,6 +9,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.IntStream;
 
 import javax.swing.*;
 import javax.swing.event.MouseInputAdapter;
@@ -16,41 +17,88 @@ import javax.swing.event.MouseInputAdapter;
 public class HopFieldFrame extends JFrame {
 
     public static final int COL_WIDTH = 50;
-    public static final int ROW_WIDTH = 100;
+    public static final int ROW_WIDTH = 50;
     private static int ROWS = 5;
-    private static int COLS = 3;
+    private static int COLS = 5;
     private final Canvas canvas;
-    private final JButton trainBtn;
+    private final JButton storeBtn;
     private final JButton guessBtn;
-
+    private final JButton resetBtn;
+    private final JButton clearCanvasBtn;
+    private final GraphCreatorCalls graphCreatorCalls;
     private Set<double[]> saved;
     private JFrame nextTo;
 
 
-    public HopFieldFrame(JFrame nextTo, Consumer<ActionEvent> computeCall) {
+    public HopFieldFrame(JFrame nextTo, Consumer<ActionEvent> computeCall, GraphCreatorCalls graphCreatorCalls) {
         super("Hopfield visualization");
         this.nextTo = nextTo;
+        this.graphCreatorCalls = graphCreatorCalls;
         saved = new HashSet<>();
         getContentPane().setLayout(new BorderLayout());
-        setSize(3 * COL_WIDTH + 20, ROW_WIDTH * 5 + 20);
+        setSize(COLS * COL_WIDTH + 10, ROW_WIDTH * ROWS + 80);
         canvas = new Canvas();
         add(canvas, BorderLayout.CENTER);
-        JPanel controlPanel = new JPanel(new GridLayout(1, 2));
-        trainBtn = new JButton("Train");
+        JPanel controlPanel = new JPanel(new GridLayout(2, 2));
+        storeBtn = new JButton("Store");
         guessBtn = new JButton("Guess");
-        controlPanel.add(trainBtn);
+        resetBtn = new JButton("Reset mem");
+        clearCanvasBtn = new JButton("Clear");
         controlPanel.add(guessBtn);
+        controlPanel.add(clearCanvasBtn);
+        controlPanel.add(storeBtn);
+        controlPanel.add(resetBtn);
         add(controlPanel, BorderLayout.SOUTH);
         setUpListeners(computeCall);
     }
 
+    public void createANN() {
+        IntStream.range(0, ROWS * COLS)
+                .forEach(i -> graphCreatorCalls.createOutput());
+        for (int i = 0; i < ROWS * COLS; i++) {
+            for (int j = 0; j < ROWS * COLS; j++) {
+                if (i != j) {
+                    graphCreatorCalls.createConnectionBetweenOutputs(i, j, false);
+                }
+            }
+        }
+    }
+
     private void setUpListeners(Consumer<ActionEvent> computeCall) {
-        trainBtn.addActionListener(e -> saved.add(canvas.data));
+        storeBtn.addActionListener(e -> {
+            System.out.println("Saved: ");
+            logToConsole();
+            saved.add(canvas.data);
+        });
         guessBtn.addActionListener(computeCall::accept);
+        resetBtn.addActionListener(e -> {
+            System.out.println("Cleared network memory");
+            saved.clear();
+        });
+        clearCanvasBtn.addActionListener(e -> {
+            Arrays.fill(canvas.data, -1);
+            canvas.repaint();
+        });
+    }
+
+    private void logToConsole() {
+        for (int row = 0; row < ROWS; row++) {
+            for (int col = 0; col < COLS; col++) {
+                if (canvas.data[row * COLS + col] > 0) {
+                    System.out.print('o');
+                } else {
+                    System.out.print(' ');
+                }
+            }
+            System.out.println();
+        }
+        System.out.println();
     }
 
     public void visualize(double[] data) {
         canvas.data = data;
+        System.out.println("Guess pattern was: ");
+        logToConsole();
         canvas.repaint();
     }
 
