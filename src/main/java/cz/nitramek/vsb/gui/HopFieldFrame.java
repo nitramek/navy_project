@@ -68,7 +68,7 @@ public class HopFieldFrame extends JFrame {
         storeBtn.addActionListener(e -> {
             System.out.println("Saved: ");
             logToConsole();
-            saved.add(canvas.data);
+            saved.add(canvas.data.clone());
         });
         guessBtn.addActionListener(computeCall::accept);
         resetBtn.addActionListener(e -> {
@@ -132,7 +132,7 @@ public class HopFieldFrame extends JFrame {
             Arrays.fill(data, -1);
             addMouseListener(new MouseInputAdapter() {
                 @Override
-                public void mouseClicked(MouseEvent e) {
+                public void mousePressed(MouseEvent e) {
                     int row = e.getY() / ROW_WIDTH;
                     int col = e.getX() / COL_WIDTH;
                     if (data[row * COLS + col] > 0) {
