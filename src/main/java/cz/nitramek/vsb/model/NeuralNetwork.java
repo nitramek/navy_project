@@ -9,12 +9,14 @@ import java.util.Queue;
 import java.util.Stack;
 import java.util.stream.Collectors;
 
+import cz.nitramek.vsb.gui.MainFrame;
 import cz.nitramek.vsb.model.nodes.Connection;
 import cz.nitramek.vsb.model.nodes.InputNeuron;
 import cz.nitramek.vsb.model.nodes.Neuron;
 import lombok.Data;
 
 import static java.util.Comparator.comparing;
+import static java.util.Comparator.comparingInt;
 
 @Data
 public class NeuralNetwork {
@@ -26,7 +28,7 @@ public class NeuralNetwork {
         this.inputNeurons = inputNeurons;
         this.inputNeurons.sort(comparing(Neuron::getId));
         this.outputs = outputs;
-        this.outputs.sort(comparing(Neuron::getId));
+        this.outputs.sort(comparingInt(n -> Integer.parseInt(n.getId().replace(MainFrame.OUTPUT_NODE_PREFIX, ""))));
     }
 
 

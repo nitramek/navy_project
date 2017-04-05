@@ -26,7 +26,7 @@ public class Connection {
         return weight * from.process();
     }
 
-    private void fireValuePassed() {
+    public void fireValuePassed() {
         if (listener != null) {
             listener.valueChange(weight);
         }

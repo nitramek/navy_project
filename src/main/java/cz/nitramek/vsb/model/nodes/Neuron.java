@@ -39,7 +39,7 @@ public class Neuron {
         this.hiddenWeight = 1;
     }
 
-    protected void fireNeuronValuePass(double value) {
+    public void fireNeuronValuePass(double value) {
         if (listener != null) {
             listener.valueChange(value);
         }

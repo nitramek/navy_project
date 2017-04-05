@@ -3,7 +3,6 @@ package cz.nitramek.vsb.gui;
 
 import org.graphstream.graph.Edge;
 import org.graphstream.graph.Node;
-import org.graphstream.ui.graphicGraph.GraphicElement;
 import org.graphstream.ui.graphicGraph.GraphicGraph;
 import org.graphstream.ui.graphicGraph.GraphicNode;
 import org.graphstream.ui.layout.Layout;
@@ -36,6 +35,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,6 +51,7 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 import cz.nitramek.vsb.MyNode;
 import cz.nitramek.vsb.Tuple;
 import cz.nitramek.vsb.Utils;
+import cz.nitramek.vsb.model.HopFieldNetwork;
 import cz.nitramek.vsb.model.NeuralNetwork;
 import cz.nitramek.vsb.model.learning.BackPropagation;
 import cz.nitramek.vsb.model.learning.DeltaNeuralLearning;
@@ -82,6 +83,7 @@ public class MainFrame extends JFrame {
     private final JLabel epochLabel;
     private final JButton switchLearningButton;
     private final JTextField inputField;
+    private final HopFieldFrame hopfieldFrame;
     private File selectedTrainingSetFile;
     private boolean isLearning = true;
     private GraphicGraph graph;
@@ -96,6 +98,7 @@ public class MainFrame extends JFrame {
     private NeuralLearning neuralLearning;
     private double learningCoeff;
     private double acceptedError;
+
 
     public MainFrame() {
         super("Navy!");
@@ -127,7 +130,8 @@ public class MainFrame extends JFrame {
                 new ComboItem<>(TransferFunction.BINARY, "Binary"),
                 new ComboItem<>(TransferFunction.PERCEPTRON, "Perceptron"),
                 new ComboItem<>(TransferFunction.HYPERBOLIC, "Hyperbolic"),
-                new ComboItem<>(TransferFunction.LOGISTIC, "Sigmoid"));
+                new ComboItem<>(TransferFunction.LOGISTIC, "Sigmoid"),
+                new ComboItem<>(TransferFunction.SIGNUM, "Sign"));
         JComboBox<ComboItem<TransferFunction>> transferFunctionJComboBox = new JComboBox<>(new Vector<>(comboItems));
 
         transferFunctionJComboBox.addActionListener(e -> {
@@ -235,13 +239,27 @@ public class MainFrame extends JFrame {
             networkFileChooser.showOpenDialog(MainFrame.this);
         });
         controlPanel.add(importNetwork, gbc);
+        gbc.gridy++;
+        hopfieldFrame = new HopFieldFrame(this, this::startComputation);
+        JButton hopfieldVisualizationBtn = new JButton("Hopfield visualization");
+        hopfieldVisualizationBtn.addActionListener(e -> {
+            hopfieldFrame.setVisible(true);
+        });
+        controlPanel.add(hopfieldVisualizationBtn, gbc);
 
+    }
+
+    public boolean isHopfield() {
+        return hopfieldFrame.isVisible();
     }
 
     private void cleanGraph() {
         graph.clear();
         setGraphStyles();
         itemNextId = 0;
+        nn = null;
+        neuralLearning = null;
+        hopfieldFrame.clear();
     }
 
     private void loadNetworkStructure(Path path) {
@@ -271,12 +289,23 @@ public class MainFrame extends JFrame {
                         }
                     });
             lines.remove(0);
-            lines.forEach(l -> {
-                String[] split = l.split("-");
-                GraphicNode from = graph.getNode(idTranslator.get(split[0]));
-                GraphicNode to = graph.getNode(idTranslator.get(split[1]));
-                createConnectionBetween(from, to);
-            });
+            if (isHopfield()) {
+                Collection<String> graphIds = idTranslator.values();
+                graphIds.forEach(nodeId -> {
+                    graphIds.stream()
+                            .filter(node2Id -> !node2Id.equals(nodeId))
+                            .forEach(node2Id -> createConnectionBetween(nodeId, node2Id, false));
+                });
+            } else {
+                lines.forEach(l -> {
+                    String[] split = l.split("-");
+                    GraphicNode from = graph.getNode(idTranslator.get(split[0]));
+                    GraphicNode to = graph.getNode(idTranslator.get(split[1]));
+
+                    boolean directed = split.length < 3;
+                    createConnectionBetween(from, to, directed);
+                });
+            }
         } catch (IOException e1) {
             throw new UncheckedIOException(e1);
         }
@@ -371,22 +400,11 @@ public class MainFrame extends JFrame {
                 if (e.getKeyCode() == KeyEvent.VK_F5) {
                     startComputation(null);
                 }
+                if (e.getKeyChar() == 'd') { //make connection
+                    onConnect(false);
+                }
                 if (e.getKeyChar() == 'c') { //make connection
-                    if (selectedNode == null) {
-                        graphMouseManager.getSelectedElement().ifPresent(ge -> {
-                            if (ge instanceof GraphicNode) {
-                                selectedNode = (GraphicNode) ge;
-                                System.out.println("Selected node " + selectedNode.getId());
-                            } else {
-                                System.out.println("Node not selected");
-                            }
-                        });
-                    } else {
-                        graphMouseManager.getSelectedElement().ifPresent(ge -> {
-                            createConnectionBetween(selectedNode, ge);
-                            selectedNode = null;
-                        });
-                    }
+                    onConnect(true);
                 }
                 if (e.getKeyChar() == 'd') {
                     //TODO removal
@@ -416,6 +434,24 @@ public class MainFrame extends JFrame {
                     autoLayout = !autoLayout;
                 }
             }
+
+            private void onConnect(boolean directed) {
+                if (selectedNode == null) {
+                    graphMouseManager.getSelectedElement().ifPresent(ge -> {
+                        if (ge instanceof GraphicNode) {
+                            selectedNode = (GraphicNode) ge;
+                            System.out.println("Selected node " + selectedNode.getId());
+                        } else {
+                            System.out.println("Node not selected");
+                        }
+                    });
+                } else {
+                    graphMouseManager.getSelectedElement().ifPresent(ge -> {
+                        createConnectionBetween(selectedNode, (GraphicNode) ge, directed);
+                        selectedNode = null;
+                    });
+                }
+            }
         });
         view.addMouseWheelListener(e -> { //zooming
             double diff = e.getPreciseWheelRotation() * e.getScrollAmount() * 0.05;
@@ -439,9 +475,27 @@ public class MainFrame extends JFrame {
         }
     }
 
-    private void createConnectionBetween(GraphicNode fromNode, GraphicElement toNode) {
+    private void createConnectionBetween(String fromNodeId, String toNodeId, boolean directed) {
+        GraphicNode fromNode = graph.getNode(fromNodeId);
+        GraphicNode toNode = graph.getNode(toNodeId);
+        createConnectionBetween(fromNode, toNode, directed);
+    }
+
+    private void createConnectionBetween(GraphicNode fromNode, GraphicNode toNode, boolean directed) {
+        try {
+            long edgeBetween = fromNode.getEdgeSet().stream()
+                    .filter(e -> e.getNode0().getId().equals(toNode.getId()))
+                    .count();
+            edgeBetween += fromNode.getEdgeSet().stream()
+                    .filter(e -> e.getNode1().getId().equals(toNode.getId()))
+                    .count();
+            if (edgeBetween > 0) {
+                return;
+            }
+        } catch (NullPointerException ignored) {
+        }
         Edge edge = graph.addEdge(EDGE_PREFIX + itemNextId,
-                fromNode.getId(), toNode.getId(), true);
+                fromNode.getId(), toNode.getId(), directed);
         Neuron fromNeuron = fromNode.getAttribute(NEURON_ATTRIBUTE);
         Neuron toNeuron = toNode.getAttribute(NEURON_ATTRIBUTE);
         Connection connection = new Connection(fromNeuron, toNeuron);
@@ -461,26 +515,32 @@ public class MainFrame extends JFrame {
             if (nn == null) {
                 nn = prepareANN();
             }
-            if (!isLearning) {
-                double[] input = Pattern.compile(";").splitAsStream(inputField.getText())
-                        .mapToDouble(Double::parseDouble)
-                        .toArray();
-                double[] process = nn.process(input);
-                System.out.println("Output is " + Arrays.toString(process));
+            if (isHopfield()) {
+                double[] input = hopfieldFrame.getData();
+                double[] output = nn.process(input);
+                hopfieldFrame.visualize(output);
             } else {
-                //learning
-                if (autoLearn) {
-                    log.info("Staring auto learning");
-                    val processData = neuralLearning.autoLearn();
-                    saveLearningProcess(processData);
+                if (!isLearning) {
+                    double[] input = Pattern.compile(";").splitAsStream(inputField.getText())
+                            .mapToDouble(Double::parseDouble)
+                            .toArray();
+                    double[] process = nn.process(input);
+                    System.out.println("Output is " + Arrays.toString(process));
                 } else {
-                    log.info("Learning single step");
-                    if (isLearning) {
-                        double error = neuralLearning.learnSingleEpoch();
-                        if (error > 0) {
-                            updateEpochLabel(neuralLearning.getEpoch());
-                        } else {
-                            setNotLearning();
+                    //learning
+                    if (autoLearn) {
+                        log.info("Staring auto learning");
+                        val processData = neuralLearning.autoLearn();
+                        saveLearningProcess(processData);
+                    } else {
+                        log.info("Learning single step");
+                        if (isLearning) {
+                            double error = neuralLearning.learnSingleEpoch();
+                            if (error > 0) {
+                                updateEpochLabel(neuralLearning.getEpoch());
+                            } else {
+                                setNotLearning();
+                            }
                         }
                     }
                 }
@@ -512,7 +572,12 @@ public class MainFrame extends JFrame {
                 outputNeurons.add(neuron);
             }
         }
-        return new NeuralNetwork(inputNeurons, outputNeurons);
+        if (isHopfield()) {
+            return new HopFieldNetwork(outputNeurons, hopfieldFrame.getSaved());
+        } else {
+            return new NeuralNetwork(inputNeurons, outputNeurons);
+        }
+
     }
 
     private void saveLearningProcess(List<List<Tuple<double[], double[]>>> outputVectors) {
